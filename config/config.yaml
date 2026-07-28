@@ -1,0 +1,4 @@
+adapter:
+  input_folder: "../data/input/hpo/"
+  output_folder: "../data/output/transformed/"
+  output_file_name: "hpo.csv"
