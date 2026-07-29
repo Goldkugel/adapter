@@ -6,7 +6,7 @@ sys.dont_write_bytecode = True
 from abc                import ABC, abstractmethod
 from BaseAdapterModel   import BaseAdapterConfig
 from Logger             import Logger
-import BaseAdapterUtils
+from BaseAdapterUtils   import *
 import pandas           as pd
 import yaml
 import os
@@ -25,7 +25,7 @@ class BaseAdapter(ABC):
     Handles loading and validating shared configuration (input/output
     paths, CSV formatting options) from a YAML file, and provides a
     common `to_csv()` method for writing the loaded EAV data to disk.
-    Concrete subclasses (e.g. HPOAdapter, SNOMEDAdapter) must implement
+    Concrete subclasses (e.g. HPOAdapter, SCTAdapter) must implement
     `load()` to populate `self.data` from their specific ontology
     source format.
     """
@@ -74,7 +74,7 @@ class BaseAdapter(ABC):
             self.data,
             os.path.join(
                 self.config.output_folder,
-                self.config.output_file_name
+                self.config.output_file
             ),
             self.config.delimiter,
             self.config.encoding

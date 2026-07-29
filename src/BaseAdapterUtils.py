@@ -111,6 +111,6 @@ def writeHugeCSV(
         # (os.replace is atomic on both POSIX and Windows).
         os.replace(tmpfile, file)
 
-        l.log("Replaced original data with temporary data.")
+        l.log("Replacing original data with temporary data completed.")
 
     return ret

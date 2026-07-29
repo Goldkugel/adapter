@@ -3,6 +3,10 @@ import sys
 # Prevent Python from generating .pyc bytecode files
 sys.dont_write_bytecode = True
 
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
 from owlready2      import *
 from rdflib         import Namespace, RDF, Literal
 import pandas       as pd
@@ -87,7 +91,7 @@ def getSynonymTypeFromString(string: str = "") -> str:
             ret = allelicRequirementSynonymType
 
         # Direct synonym (no qualifier)
-        elif directSynonymType in string:
+        else:
             ret = directSynonymType
 
     return ret
@@ -451,7 +455,7 @@ def getChildren(
 
         for row in result:
             ids.append(getConceptIDFromString(str(row.parent)))
-            values.append(row.child)
+            values.append(getConceptIDFromString(str(row.child)))
 
         # Normalize comments into standard DataFrame format
         ret = pd.DataFrame({

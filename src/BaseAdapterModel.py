@@ -36,7 +36,7 @@ class BaseAdapterConfig(BaseModel):
     output_folder: str      = "../data/output/transformed/"
 
     # Name of the CSV file to write to within `output_folder`.
-    output_file_name: str   = "ontology.csv"
+    output_file: str        = "ontology.csv"
 
     # Field delimiter used when writing the EAV CSV file.
     delimiter: str          = ";"
@@ -56,3 +56,6 @@ class BaseAdapterConfig(BaseModel):
     # The column where additional information in form of a JSON object will be
     # stored.
     additional_column: str  = "additional"
+
+    # Skip if the output file is already present. 
+    skip_if_present: bool   = False

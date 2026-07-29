@@ -2,8 +2,9 @@ adapter:
   input_folder: "../data/input/hpo/"
   input_files:
     - "hp.owl"
-  output_folder: "../data/output/transformed/"
-  output_file_name: "hpo.csv"
+  output_folder: "../data/output/transformed/hpo/"
+  output_file: "hpo.csv"
+  skip_if_present: False
 logger:
   folder: "../data/logs/"
   file_name: "output.log"
