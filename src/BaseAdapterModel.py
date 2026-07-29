@@ -1,8 +1,9 @@
-from pydantic import BaseModel, ConfigDict
 import sys
 
 # Prevent Python from generating .pyc files (compiled bytecode files)
 sys.dont_write_bytecode = True
+
+from pydantic import BaseModel, ConfigDict
 
 class BaseAdapterConfig(BaseModel):
     """
@@ -27,6 +28,9 @@ class BaseAdapterConfig(BaseModel):
     # like SNOMED RF2) that this adapter should load.
     input_folder: str       = "../data/input/"
 
+    # The list of input files to process.
+    input_files: list       = []
+
     # Directory where the output CSV file will be written (relative or
     # absolute path).
     output_folder: str      = "../data/output/transformed/"
@@ -47,7 +51,7 @@ class BaseAdapterConfig(BaseModel):
     attribute_column: str   = "attribute"
 
     # The column where the values will be stored.
-    value_columns: str      = "value"
+    value_column: str       = "value"
 
     # The column where additional information in form of a JSON object will be
     # stored.

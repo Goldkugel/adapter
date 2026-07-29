@@ -1,3 +1,8 @@
+import sys
+
+# Prevent Python from generating .pyc bytecode files
+sys.dont_write_bytecode = True
+
 from abc                import ABC, abstractmethod
 from BaseAdapterModel   import BaseAdapterConfig
 from Logger             import Logger
