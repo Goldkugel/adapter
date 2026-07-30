@@ -4,7 +4,7 @@ import sys
 sys.dont_write_bytecode = True
 
 from abc                import ABC, abstractmethod
-from BaseAdapterModel   import BaseAdapterConfig
+from adapter.src.BaseAdapterConfig   import BaseAdapterConfig
 from Logger             import Logger
 from BaseAdapterUtils   import *
 import pandas           as pd

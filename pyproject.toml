@@ -2,5 +2,5 @@
 name = "adapter"
 version = "1.0.0"
 dependencies = [
-    "logger @ git+https://github.com/Goldkugel/logger.git@v1.0.4"
+    "logger @ git+https://github.com/Goldkugel/logger.git@v1.0.5"
 ]
