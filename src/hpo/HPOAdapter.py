@@ -14,6 +14,8 @@ import pandas           as pd
 import HPOAdapterUtils  as utils
 import os
 
+config_keyword = "hpo"
+
 class HPOAdapter(BaseAdapter):
     """
     Concrete adapter for loading the Human Phenotype Ontology (HPO)
@@ -24,6 +26,9 @@ class HPOAdapter(BaseAdapter):
     definitions, comments, children, references, synonyms) against
     it and concatenates the results into self.data.
     """
+
+    def __init__(self, config: str = standard_directory):
+        super().__init__(config, config_keyword)
 
     def load(self) -> int:
         """
@@ -39,11 +44,12 @@ class HPOAdapter(BaseAdapter):
                 self.config.output_folder, 
                 self.config.output_file
             )
-            if os.path.isfile(output_file) and self.config.skip_if_present:
+
+            if isFile(output_file) and self.config.skip_if_present:
                 l.log("Skipping loading since output file is already present.")
             else:
                 l.log("Loading the Human Phenotype Ontology " \
-                     f"(HPO) from '{self.config.input_files[0]}'")
+                     f"(HPO) from '{self.config.input_files[0]}'...")
                 path = os.path.join(
                     self.config.input_folder, 
                     self.config.input_files[0]
@@ -78,6 +84,7 @@ class HPOAdapter(BaseAdapter):
                 if self.data is not None:
                     ret = len(self.data.index)
                     l.log(f"Data merged. Found {ret} entities/rows in total.")
+
                     l.log("Removing rows without an ID...")
                     self.data = self.data[(
                         self.data[self.config.id_column].notna()) & (
@@ -86,6 +93,7 @@ class HPOAdapter(BaseAdapter):
                     l.log("Removing rows without an ID completed.")
                     ret = len(self.data.index)
                     l.log(f"Reduced to {ret} entities/rows in total.")
+
                     l.log("Removing rows with a '#' in the ID...")
                     self.data = self.data[
                         ~self.data[self.config.id_column].str.contains(
@@ -98,6 +106,9 @@ class HPOAdapter(BaseAdapter):
                     l.log(f"Reduced to {ret} entities/rows in total.")
                 else:
                     l.log("No data found. Is it the correct file?")
+
+                l.log("Loading the Human Phenotype Ontology " \
+                     f"(HPO) from '{self.config.input_files[0]}' completed.")
         else:
             l.log("No input file found. Was it set in the configuration file?")
 

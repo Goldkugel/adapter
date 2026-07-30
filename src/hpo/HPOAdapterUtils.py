@@ -7,11 +7,10 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
+from Logger         import Logger
 from owlready2      import *
-from rdflib         import Namespace, RDF, Literal
+from rdflib         import Namespace, RDF
 import pandas       as pd
-import numpy        as np
-import json
 import os
 
 labelClass                      = "label"
@@ -159,8 +158,10 @@ def getSynonymsAndTypes(
     Returns a normalized DataFrame suitable for downstream processing.
     """
     ret = None
+    l = Logger()
 
     if hpo is not None:
+        l.log("Get synonyms and types of the Human Phenotype Ontology (HPO)...")
         # Convert Owlready2 ontology into an RDFLib graph
         g = hpo.world.as_rdflib_graph()
 
@@ -240,6 +241,8 @@ def getSynonymsAndTypes(
             additional_column : additional
         })
 
+        l.log(f"{len(ret.index)} entities of the Human Phenotype Ontology (HPO) extracted.")
+
     return ret
 
 def getComments(
@@ -257,8 +260,11 @@ def getComments(
     - Axiom-based comment annotations
     """
     ret = None
+    l = Logger()
 
     if hpo is not None:
+        l.log("Get comments of the Human Phenotype Ontology (HPO)...")
+
         g = hpo.world.as_rdflib_graph()
 
         # SPARQL query retrieves comments from both direct and axiom-based sources
@@ -304,6 +310,8 @@ def getComments(
             additional_column   : [{} for _ in range(len(ids))]
         })
 
+        l.log(f"{len(ret.index)} entities of the Human Phenotype Ontology (HPO) extracted.")
+
     return ret
 
 def getDefinitions(
@@ -318,8 +326,11 @@ def getDefinitions(
     (obo:IAO_0000115 annotations).
     """
     ret = None
+    l = Logger()
 
     if hpo is not None:
+        l.log("Get definitions of the Human Phenotype Ontology (HPO)...")
+
         g = hpo.world.as_rdflib_graph()
 
         # Retrieve definitions from direct and axiom-based annotations
@@ -363,6 +374,8 @@ def getDefinitions(
             additional_column   : [{} for _ in range(len(ids))]
         })
 
+        l.log(f"{len(ret.index)} entities of the Human Phenotype Ontology (HPO) extracted.")
+
     return ret
 
 def getLabels(
@@ -376,8 +389,11 @@ def getLabels(
     Extract rdfs:label annotations for HPO concepts.
     """
     ret = None
+    l = Logger()
 
     if hpo is not None:
+        l.log("Get labels of the Human Phenotype Ontology (HPO)...")
+
         g = hpo.world.as_rdflib_graph()
 
         # Simple query for concept labels
@@ -412,6 +428,8 @@ def getLabels(
             additional_column   : [{} for _ in range(len(ids))]
         })
 
+        l.log(f"{len(ret.index)} entities of the Human Phenotype Ontology (HPO) extracted.")
+
     return ret
 
 def getChildren(
@@ -428,8 +446,11 @@ def getChildren(
         parent HPO ID -> child HPO ID
     """
     ret = None
+    l = Logger()
 
     if hpo is not None:
+        l.log("Get children of concepts of the Human Phenotype Ontology (HPO)...")
+
         # Convert Owlready2 ontology into an RDFLib graph
         g = hpo.world.as_rdflib_graph()
 
@@ -465,6 +486,8 @@ def getChildren(
             additional_column   : [{} for _ in range(len(ids))]
         })
 
+        l.log(f"{len(ret.index)} entities of the Human Phenotype Ontology (HPO) extracted.")
+
     return ret
 
 def getReferences(
@@ -482,8 +505,11 @@ def getReferences(
     - Axiom-annotated DbXrefs
     """
     ret = None
+    l = Logger()
 
     if hpo is not None:
+        l.log("Get references of the Human Phenotype Ontology (HPO)...")
+
         g = hpo.world.as_rdflib_graph()
 
         # Retrieve cross-references from both direct and axiom-based annotations
@@ -525,5 +551,7 @@ def getReferences(
             value_column      : values,
             additional_column : [{} for _ in range(len(ids))]
         })
+
+        l.log(f"{len(ret.index)} entities of the Human Phenotype Ontology (HPO) extracted.")
 
     return ret

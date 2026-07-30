@@ -17,6 +17,70 @@ configuration_section: str  = "adapter"
 # Default path to the config file, used if no path is explicitly passed in.
 standard_directory: str     = "../config/config.yaml"
 
+def isFile(path: str = "") -> bool:
+    """
+    Check whether the given path refers to an existing file.
+
+    Parameters
+    ----------
+    path : str, optional
+        Path to check.
+
+    Returns
+    -------
+    bool
+        True if the path exists and is a file, False otherwise.
+    """
+    return os.path.isfile(path)
+
+
+def isFolder(path: str = "") -> bool:
+    """
+    Check whether the given path refers to an existing directory.
+
+    Parameters
+    ----------
+    path : str, optional
+        Path to check.
+
+    Returns
+    -------
+    bool
+        True if the path exists and is a directory, False otherwise.
+    """
+    return os.path.isdir(path)
+
+
+def createFolder(path: str = "") -> bool:
+    """
+    Create a directory if it does not already exist.
+
+    A log message is written indicating whether the directory was created
+    or already existed.
+
+    Parameters
+    ----------
+    path : str, optional
+        Path of the directory to create.
+
+    Returns
+    -------
+    bool
+        True if the directory was created, False if it already existed.
+    """
+    ret = False
+
+    l = Logger()
+    base_name = os.path.basename(path)
+
+    if not isFolder(path):
+        os.makedirs(path)
+        l.log(f"Folder '{base_name}' created.")
+        ret = True
+    else:
+        l.log(f"Folder '{base_name}' already exists.")
+
+    return ret
 
 class BaseAdapter(ABC):
     """
@@ -39,7 +103,7 @@ class BaseAdapter(ABC):
     # information as a JSON object where needed.
     data: pd.DataFrame = None
 
-    def __init__(self, config: str = standard_directory):
+    def __init__(self, config: str = standard_directory, adapter_name: str = ""):
         """
         Load and validate adapter configuration from a YAML file.
         """
@@ -51,9 +115,14 @@ class BaseAdapter(ABC):
         # BaseAdapterConfig model (raises if required fields are
         # missing/invalid, or if unexpected keys are present, per the
         # model's configuration).
-        self.config = BaseAdapterConfig.model_validate(
-            data[configuration_section]
-        )
+        if len(adapter_name) > 0:
+            self.config = BaseAdapterConfig.model_validate(
+                data[configuration_section][adapter_name]
+            )
+        else:
+            self.config = BaseAdapterConfig.model_validate(
+                data[configuration_section]
+            )
 
     @abstractmethod
     def load(self) -> int:
@@ -70,6 +139,11 @@ class BaseAdapter(ABC):
         # using the configured delimiter and encoding. Shared across
         # all adapters, since the write logic itself doesn't depend on
         # which ontology was loaded.
+
+        # Creating folder if it does not exist.
+        if not isFolder(self.config.output_folder):
+            createFolder(self.config.output_folder)
+
         return writeHugeCSV(
             self.data,
             os.path.join(
