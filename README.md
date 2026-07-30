@@ -157,7 +157,7 @@ from src import HPOAdapter
 adapter = HPOAdapter()
 
 adapter.load()
-adapter.save()
+adapter.to_csv()
 ```
 
 The resulting CSV is written to the configured output directory.
