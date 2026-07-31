@@ -77,13 +77,15 @@ class HPOAdapter(BaseAdapter):
                     if frame is not None:
                         frames.append(frame)
 
-                l.log(f"Loading completed. Merging data...")
+                l.log(f"Loading completed.")
                 if len(frames) > 0:
+                    l.log("Merging data...")
                     self.data = pd.concat(frames, ignore_index = True)
+                    l.log("Merging data completed.")
 
                 if self.data is not None:
                     ret = len(self.data.index)
-                    l.log(f"Data merged. Found {ret} entities/rows in total.")
+                    l.log(f"Found {ret} entities/rows in total.")
 
                     l.log("Removing rows without an ID...")
                     self.data = self.data[(

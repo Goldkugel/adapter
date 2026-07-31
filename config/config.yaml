@@ -21,6 +21,18 @@ adapter:
     output_folder: "../data/output/transformed/sct/"
     output_file: "sct.csv"
     skip_if_present: False
+  umls:
+    input_folder: "../data/input/umls/"
+    input_files:
+      - "MRCONSO.RRF"
+      - "MRDEF.RRF"
+      - "MRRANK.RRF"
+      - "MRREL.RRF"
+      - "MRSAT.RRF"
+      - "MRSTY.RRF"
+    output_folder: "../data/output/transformed/umls/"
+    output_file: "umls.csv"
+    skip_if_present: False
 logger:
   folder: "../data/logs/"
   file_name: "output.log"

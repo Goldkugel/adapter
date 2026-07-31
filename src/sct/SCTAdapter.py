@@ -69,7 +69,9 @@ class SCTAdapter(BaseAdapter):
                 l.log("Skipping loading since output file is already present.")
             else:
                 l.log(f"Loading SNOMED CT from {len(self.config.input_files)} files...")
+
                 concepts = None
+
                 files = self.config.input_files.copy()
                 for input_file in self.config.input_files:
                     if str(input_file).startswith(conceptPrefix) and concepts is None:
@@ -78,8 +80,13 @@ class SCTAdapter(BaseAdapter):
                         concepts = getConcepts(readConceptFile(input_file), rf2SourceId)
 
                 frames = []
+
                 for input_file in files:
-                    input_file = os.path.join(self.config.input_folder, input_file)
+                    input_file = os.path.join(
+                        self.config.input_folder, 
+                        input_file
+                    )
+
                     frame = readRF2FileByPath(
                         input_file, 
                         self.config.id_column, 
@@ -89,23 +96,59 @@ class SCTAdapter(BaseAdapter):
                     )
                     if frame is not None:
                         frame = removeNotActiveConcepts(frame, self.config.id_column, concepts)
-                        frames.append(frame)
+                        if len(frame.index) > 0:
+                            frames.append(frame)
 
-                l.log(f"Loading completed. Merging data...")
+                l.log(f"Loading completed.")
 
                 if len(frames) > 0:
+                    l.log("Merging data...")
                     self.data = pd.concat(frames, ignore_index = True)
-
-                if self.data is not None:
                     ret = len(self.data.index)
-                    l.log(f"Data merged. Found {ret} entities/rows in total.")
+                    l.log(f"Found {ret} entities/rows in total.")
+
+                    #
+                    # Remove rows without an identifier.
+                    #
+                    l.log("Removing rows without an ID...")
+                    self.data = self.data[
+                        (self.data[self.config.id_column].notna()) &
+                        (self.data[self.config.id_column] != "")
+                    ]
+                    l.log("Removing rows without an ID completed.")
+
+                    ret = len(self.data.index)
+                    l.log(f"Reduced to {ret} entities/rows in total.")
+
+                    #
+                    # Remove rows without values.
+                    #
+                    l.log("Removing rows without values...")
+                    self.data = self.data[
+                        (self.data[self.config.value_column].notna()) &
+                        (self.data[self.config.value_column] != "")
+                    ]
+                    l.log("Removing rows without values completed.")
+
+                    ret = len(self.data.index)
+                    l.log(f"Reduced to {ret} entities/rows in total.")
+
+                    #
+                    # Remove duplicate EAV entries.
+                    #
+                    l.log("Removing duplicate rows...")
+                    self.data = self.data.drop_duplicates().reset_index(drop = True)
+                    l.log("Removing duplicate rows completed.")
+
+                    ret = len(self.data.index)
+                    l.log(f"Reduced to {ret} entities/rows in total.")
                 else:
                     l.log("No data found. Is it the correct file?")
 
                 l.log(f"Loading SNOMED CT from {len(self.config.input_files)} files completed.")
 
         else:
-            l.log("No input file found. Was it set in the configuration file?")
+            l.log("No input files found. Were they set in the configuration file?")
 
         return ret
 

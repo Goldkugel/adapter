@@ -1,5 +1,7 @@
 data/input/sct/*
 data/output/transformed/sct/sct.csv
+data/input/umls/*
+data/output/transformed/umls/umls.csv
 data/output/transformed/hpo/hpo.csv
 data/input/hpo/hp.owl
 
