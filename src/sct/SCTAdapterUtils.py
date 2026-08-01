@@ -103,7 +103,12 @@ isActive = "1"
 # relationship type currently converted into the EAV set.
 isARelationshipTypeId = "116680003"
 
-def _readRF2File(path: str, columns: list) -> pd.DataFrame:
+def _readRF2File(
+    path                : str, 
+    columns             : list,
+    encoding            : str, 
+    separator           : str
+) -> pd.DataFrame:
     """
     Read a single tab-delimited RF2 file into a DataFrame. All columns are 
     read as strings to avoid misinterpreting SCTIDs or other numeric-looking 
@@ -113,10 +118,10 @@ def _readRF2File(path: str, columns: list) -> pd.DataFrame:
     l.printFileProcessingStart(path)
     ret = pd.read_csv(
         path,
-        sep             = "\t",
+        sep             = separator,
         dtype           = str,
         keep_default_na = False,
-        encoding        = "utf-8",
+        encoding        = encoding,
         usecols         = columns,
     )
     l.printFileProcessingEnd(path)
@@ -124,44 +129,64 @@ def _readRF2File(path: str, columns: list) -> pd.DataFrame:
     return ret
  
  
-def readConceptFile(path: str = "") -> pd.DataFrame:
+def readConceptFile(
+    path                : str,
+    encoding            : str, 
+    separator           : str
+) -> pd.DataFrame:
     """
     Read the Concept file: one row per SNOMED CT concept, with its
     active/inactive status and definition status.
     """
-    return _readRF2File(path, conceptColumns)
+    return _readRF2File(path, conceptColumns, encoding, separator)
  
  
-def readDescriptionFile(path: str = "") -> pd.DataFrame:
+def readDescriptionFile(
+    path: str,
+    encoding            : str, 
+    separator           : str
+) -> pd.DataFrame:
     """
     Read the Description file: fully specified names (FSNs) and
     synonyms for each concept, one row per description.
     """
-    return _readRF2File(path, descriptionColumns)
+    return _readRF2File(path, descriptionColumns, encoding, separator)
  
  
-def readRelationshipFile(path: str = "") -> pd.DataFrame:
+def readRelationshipFile(
+    path                : str,
+    encoding            : str, 
+    separator           : str
+) -> pd.DataFrame:
     """
     Read the Relationship file: one row per relationship between two
     concepts (e.g. IS-A / subtype relationships, attribute relationships).
     """
-    return _readRF2File(path, relationshipColumns)
+    return _readRF2File(path, relationshipColumns, encoding, separator)
  
  
-def readTextDefinitionFile(path: str = "") -> pd.DataFrame:
+def readTextDefinitionFile(
+    path                : str,
+    encoding            : str, 
+    separator           : str
+) -> pd.DataFrame:
     """
     Read the TextDefinition file: free-text definitions for concepts,
     one row per definition (same column layout as Description).
     """
-    return _readRF2File(path, textDefinitionColumns)
+    return _readRF2File(path, textDefinitionColumns, encoding, separator)
  
  
-def readSimpleMapFile(path: str = "") -> pd.DataFrame:
+def readSimpleMapFile(
+    path                : str,
+    encoding            : str, 
+    separator           : str
+) -> pd.DataFrame:
     """
     Read the Simple Map reference set file: one row per mapping from a
     SNOMED CT concept to a code in another scheme (e.g. ICD-10).
     """
-    return _readRF2File(path, simpleMapColumns)
+    return _readRF2File(path, simpleMapColumns, encoding, separator)
 
 def _activeOnly(
     data                : pd.DataFrame
@@ -171,7 +196,7 @@ def _activeOnly(
  
 def getConcepts(
     data                : pd.DataFrame,
-    id_column           : str = "id"
+    id_column           : str
 ) -> list:
     """
     Return the unique SCTIDs of all active concepts in a raw Concept
@@ -195,7 +220,7 @@ def getDescriptions(
     id_column           : str,
     attribute_column    : str,
     value_column        : str,
-    additional_column   : str,
+    additional_column   : str
 ) -> pd.DataFrame:
     """
     Convert a raw Description or TextDefinition DataFrame (from
@@ -222,7 +247,7 @@ def getChildren(
     id_column           : str,
     attribute_column    : str,
     value_column        : str,
-    additional_column   : str,
+    additional_column   : str
 ) -> pd.DataFrame:
     """
     Convert a raw Relationship DataFrame (from readRelationshipFile)
@@ -244,7 +269,7 @@ def getReferences(
     id_column           : str,
     attribute_column    : str,
     value_column        : str,
-    additional_column   : str,
+    additional_column   : str
 ) -> pd.DataFrame:
     """
     Convert a raw Simple Map DataFrame (from readSimpleMapFile) into
@@ -267,7 +292,7 @@ def getDefinitions(
     id_column           : str,
     attribute_column    : str,
     value_column        : str,
-    additional_column   : str,
+    additional_column   : str
 ) -> pd.DataFrame:
     """
     Convert a raw TextDefinition DataFrame (from readTextDefinitionFile)
@@ -312,7 +337,9 @@ def readRF2FileByPath(
     id_column           : str,
     attribute_column    : str,
     value_column        : str,
-    additional_column   : str
+    additional_column   : str,
+    encoding            : str, 
+    separator           : str
 ) -> pd.DataFrame:
     """
     Read a single RF2 file, choosing the appropriate reader function -
@@ -327,7 +354,7 @@ def readRF2FileByPath(
 
     for key in _rf2ReadersByPrefix.keys():
         if filename.startswith(key) and ret is None:
-            ret = _rf2ReadersByPrefix[key](file_path)
+            ret = _rf2ReadersByPrefix[key](file_path, encoding, separator)
             ret = _rf2TransformersByPrefix[key](
                 ret, 
                 id_column, 

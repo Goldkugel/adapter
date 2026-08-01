@@ -21,6 +21,8 @@ adapter:
     output_folder: "../data/output/transformed/sct/"
     output_file: "sct.csv"
     skip_if_present: False
+    encoding: "utf-8"
+    separator: "\t"
   umls:
     input_folder: "../data/input/umls/"
     input_files:
@@ -33,6 +35,8 @@ adapter:
     output_folder: "../data/output/transformed/umls/"
     output_file: "umls.csv"
     skip_if_present: False
+    encoding: "utf-8"
+    separator: "|"
 logger:
   folder: "../data/logs/"
   file_name: "output.log"

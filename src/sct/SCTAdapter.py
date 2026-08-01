@@ -92,7 +92,9 @@ class SCTAdapter(BaseAdapter):
                         self.config.id_column, 
                         self.config.attribute_column, 
                         self.config.value_column, 
-                        self.config.additional_column
+                        self.config.additional_column,
+                        self.config.encoding,
+                        self.config.separator
                     )
                     if frame is not None:
                         frame = removeNotActiveConcepts(frame, self.config.id_column, concepts)
@@ -137,7 +139,11 @@ class SCTAdapter(BaseAdapter):
                     # Remove duplicate EAV entries.
                     #
                     l.log("Removing duplicate rows...")
-                    self.data = self.data.drop_duplicates().reset_index(drop = True)
+                    self.data = self.data.drop_duplicates(subset=[
+                        self.config.id_column, 
+                        self.config.attribute_column, 
+                        self.config.value_column
+                    ]).reset_index(drop = True)
                     l.log("Removing duplicate rows completed.")
 
                     ret = len(self.data.index)

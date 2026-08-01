@@ -23,115 +23,122 @@ synonymTerm = "SY"
 abbreviationTerm = "AB"
 preferredNameTerm = "PN"
 
+englishLanguage = "ENG"
+
 sourceAbbreviation = "source_abbreviation"
 
-rffConceptUniqueIdentifier: str = "CUI"
-rffLanguage: str = "LAT"
-rffTermStatus: str = "TS"
-rffLexicalUniqueIdentifier: str = "LUI"
-rffStringType: str = "STT"
-rffStringUniqueIdentifier: str = "SUI"
-rffIsPreferred: str = "ISPREF"
-rffAtomUniqueIdentifier: str = "AUI"
-rffSourceAtomUniqueIdentifier: str = "SAUI"
-rffSourceConceptUniqueIdentifier: str = "SCUI"
-rffSourceDescriptorUniqueIdentifier: str = "SDUI"
-rffSourceAbbreviation: str = "SAB"
-rffTermType: str = "TTY"
-rffSourceCode: str = "CODE"
-rffString: str = "STR"
-rffSourceRestrictionLevel: str = "SRL"
-rffSuppressibleFlag: str = "SUPPRESS"
-rffContentViewFlag: str = "CVF"
+rrfConceptUniqueIdentifier: str = "CUI"
+rrfLanguage: str = "LAT"
+rrfTermStatus: str = "TS"
+rrfLexicalUniqueIdentifier: str = "LUI"
+rrfStringType: str = "STT"
+rrfStringUniqueIdentifier: str = "SUI"
+rrfIsPreferred: str = "ISPREF"
+rrfAtomUniqueIdentifier: str = "AUI"
+rrfSourceAtomUniqueIdentifier: str = "SAUI"
+rrfSourceConceptUniqueIdentifier: str = "SCUI"
+rrfSourceDescriptorUniqueIdentifier: str = "SDUI"
+rrfSourceAbbreviation: str = "SAB"
+rrfTermType: str = "TTY"
+rrfSourceCode: str = "CODE"
+rrfString: str = "STR"
+rrfSourceRestrictionLevel: str = "SRL"
+rrfSuppressibleFlag: str = "SUPPRESS"
+rrfContentViewFlag: str = "CVF"
 
-rffAttributeUniqueIdentifier: str = "ATUI"
-rffSourceAssertedAttributeIdentifier: str = "SATUI"
-rffDefinition: str = "DEF"
+rrfAttributeUniqueIdentifier: str = "ATUI"
+rrfSourceAssertedAttributeIdentifier: str = "SATUI"
+rrfDefinition: str = "DEF"
 
-rffSemanticTypeUniqueIdentifier: str = "TUI"
-rffSemanticTypeTreeNumber: str = "STN"
-rffSemanticType: str = "STY"
+rrfSemanticTypeUniqueIdentifier: str = "TUI"
+rrfSemanticTypeTreeNumber: str = "STN"
+rrfSemanticType: str = "STY"
 
-rffConceptUniqueIdentifier1: str = "CUI1"
-rffAtomUniqueIdentifier1: str = "AUI1"
-rffSourceOrAtomIdentifierType1: str = "STYPE1"
+rrfConceptUniqueIdentifier1: str = "CUI1"
+rrfAtomUniqueIdentifier1: str = "AUI1"
+rrfSourceOrAtomIdentifierType1: str = "STYPE1"
 
-rffRelationship: str = "REL"
+rrfRelationship: str = "REL"
 
-rffConceptUniqueIdentifier2: str = "CUI2"
-rffAtomUniqueIdentifier2: str = "AUI2"
-rffSourceOrAtomIdentifierType2: str = "STYPE2"
+rrfConceptUniqueIdentifier2: str = "CUI2"
+rrfAtomUniqueIdentifier2: str = "AUI2"
+rrfSourceOrAtomIdentifierType2: str = "STYPE2"
 
-rffRelationshipAttribute: str = "RELA"
+rrfRelationshipAttribute: str = "RELA"
 
-rffRelationshipUniqueIdentifier: str = "RUI"
-rffSourceAssertedRelationshipIdentifier: str = "SRUI"
+rrfRelationshipUniqueIdentifier: str = "RUI"
+rrfSourceAssertedRelationshipIdentifier: str = "SRUI"
 
-rffSourceLevel: str = "SL"
-rffRelationshipGroup: str = "RG"
-rffDirectionalityFlag: str = "DIR"
+rrfSourceLevel: str = "SL"
+rrfRelationshipGroup: str = "RG"
+rrfDirectionalityFlag: str = "DIR"
 
 mrconsoColumns = [
-    rffConceptUniqueIdentifier,
-    rffLanguage,
-    rffTermStatus,
-    rffLexicalUniqueIdentifier,
-    rffStringType,
-    rffStringUniqueIdentifier,
-    rffIsPreferred,
-    rffAtomUniqueIdentifier,
-    rffSourceAtomUniqueIdentifier,
-    rffSourceConceptUniqueIdentifier,
-    rffSourceDescriptorUniqueIdentifier,
-    rffSourceAbbreviation,
-    rffTermType,
-    rffSourceCode,
-    rffString,
-    rffSourceRestrictionLevel,
-    rffSuppressibleFlag,
-    rffContentViewFlag,
+    rrfConceptUniqueIdentifier,
+    rrfLanguage,
+    rrfTermStatus,
+    rrfLexicalUniqueIdentifier,
+    rrfStringType,
+    rrfStringUniqueIdentifier,
+    rrfIsPreferred,
+    rrfAtomUniqueIdentifier,
+    rrfSourceAtomUniqueIdentifier,
+    rrfSourceConceptUniqueIdentifier,
+    rrfSourceDescriptorUniqueIdentifier,
+    rrfSourceAbbreviation,
+    rrfTermType,
+    rrfSourceCode,
+    rrfString,
+    rrfSourceRestrictionLevel,
+    rrfSuppressibleFlag,
+    rrfContentViewFlag,
 ]
 
 mrdefColumns = [
-    rffConceptUniqueIdentifier,
-    rffAtomUniqueIdentifier,
-    rffAttributeUniqueIdentifier,
-    rffSourceAssertedAttributeIdentifier,
-    rffSourceAbbreviation,
-    rffDefinition,
-    rffSuppressibleFlag,
-    rffContentViewFlag,
+    rrfConceptUniqueIdentifier,
+    rrfAtomUniqueIdentifier,
+    rrfAttributeUniqueIdentifier,
+    rrfSourceAssertedAttributeIdentifier,
+    rrfSourceAbbreviation,
+    rrfDefinition,
+    rrfSuppressibleFlag,
+    rrfContentViewFlag,
 ]
 
 mrstyColumns = [
-    rffConceptUniqueIdentifier,
-    rffSemanticTypeUniqueIdentifier,
-    rffSemanticTypeTreeNumber,
-    rffSemanticType,
-    rffAttributeUniqueIdentifier,
-    rffContentViewFlag,
+    rrfConceptUniqueIdentifier,
+    rrfSemanticTypeUniqueIdentifier,
+    rrfSemanticTypeTreeNumber,
+    rrfSemanticType,
+    rrfAttributeUniqueIdentifier,
+    rrfContentViewFlag,
 ]
 
 mrrelColumns = [
-    rffConceptUniqueIdentifier1,
-    rffAtomUniqueIdentifier1,
-    rffSourceOrAtomIdentifierType1,
-    rffRelationship,
-    rffConceptUniqueIdentifier2,
-    rffAtomUniqueIdentifier2,
-    rffSourceOrAtomIdentifierType2,
-    rffRelationshipAttribute,
-    rffRelationshipUniqueIdentifier,
-    rffSourceAssertedRelationshipIdentifier,
-    rffSourceAbbreviation,
-    rffSourceLevel,
-    rffRelationshipGroup,
-    rffDirectionalityFlag,
-    rffSuppressibleFlag,
-    rffContentViewFlag,
+    rrfConceptUniqueIdentifier1,
+    rrfAtomUniqueIdentifier1,
+    rrfSourceOrAtomIdentifierType1,
+    rrfRelationship,
+    rrfConceptUniqueIdentifier2,
+    rrfAtomUniqueIdentifier2,
+    rrfSourceOrAtomIdentifierType2,
+    rrfRelationshipAttribute,
+    rrfRelationshipUniqueIdentifier,
+    rrfSourceAssertedRelationshipIdentifier,
+    rrfSourceAbbreviation,
+    rrfSourceLevel,
+    rrfRelationshipGroup,
+    rrfDirectionalityFlag,
+    rrfSuppressibleFlag,
+    rrfContentViewFlag,
 ]
 
-def _readRRFFile(path: str | Path, columns: list[str]) -> pd.DataFrame:
+def _readRRFFile(
+    path: str, 
+    columns: list[str], 
+    encoding: str, 
+    separator: str
+) -> pd.DataFrame:
     """
     Read a UMLS RRF file.
 
@@ -151,11 +158,11 @@ def _readRRFFile(path: str | Path, columns: list[str]) -> pd.DataFrame:
     l.printFileProcessingStart(path)
     ret = pd.read_csv(
         path,
-        sep         = "|",
+        sep         = separator,
         header      = None,
         names       = columns + ["_"],
         dtype       = str,
-        encoding    = "utf-8",
+        encoding    = encoding,
         low_memory  = False,
     )
     l.printFileProcessingEnd(path)
@@ -163,17 +170,29 @@ def _readRRFFile(path: str | Path, columns: list[str]) -> pd.DataFrame:
 
     return ret.drop(columns = "_", errors = "ignore")
 
-def readMRCONSOFile(path: str) -> pd.DataFrame:
+def readMRCONSOFile(
+    path: str, 
+    encoding: str, 
+    separator: str
+) -> pd.DataFrame:
     """Read MRCONSO.RRF."""
-    return _readRRFFile(path, mrconsoColumns)
+    return _readRRFFile(path, mrconsoColumns, encoding, separator)
 
-def readMRDEFFile(path: str) -> pd.DataFrame:
+def readMRDEFFile(
+    path: str, 
+    encoding: str, 
+    separator: str
+) -> pd.DataFrame:
     """Read MRDEF.RRF."""
-    return _readRRFFile(path, mrdefColumns)
+    return _readRRFFile(path, mrdefColumns, encoding, separator)
 
-def readMRSTYFile(path: str) -> pd.DataFrame:
+def readMRSTYFile(
+    path: str, 
+    encoding: str, 
+    separator: str
+) -> pd.DataFrame:
     """Read MRSTY.RRF."""
-    return _readRRFFile(path, mrstyColumns)
+    return _readRRFFile(path, mrstyColumns, encoding, separator)
 
 def getConcepts(
     data: pd.DataFrame,
@@ -190,45 +209,51 @@ def getConcepts(
         - synonym
         - reference
     """
-
+    data = data[(
+        data[rrfLanguage] == englishLanguage) & (
+        data[rrfSuppressibleFlag] == no
+    )].reset_index(drop = True)
     rows = []
-
+    l = Logger()
+    l.log(f"Transforming {len(data.index)} rows in EAV schema...")
     for _, row in data.iterrows():
 
         #
         # Preferred label / synonym
         #
         attribute = ""
-        if row[rffTermType] == preferredTerm or row[rffTermType] == preferredNameTerm:
+        if row[rrfTermType] == preferredTerm or row[rrfTermType] == preferredNameTerm:
             attribute = labelClass
         else:
-            if row[rffTermType] == synonymTerm or row[rffTermType] == abbreviationTerm:
+            if row[rrfTermType] == synonymTerm or row[rrfTermType] == abbreviationTerm:
                 attribute = synonymClass
 
-        if len(attribute) > 0 and pd.notna(row[rffString]) and len(str(row[rffString])) > 0: 
+        if len(attribute) > 0 and pd.notna(row[rrfString]) and len(str(row[rrfString])) > 0: 
             rows.append({
-                id_column               : row[rffConceptUniqueIdentifier],
+                id_column               : row[rrfConceptUniqueIdentifier],
                 attribute_column        : attribute,
-                value_column            : str(row[rffString]),
-                additional_column       : {sourceAbbreviation : str(row[rffSourceAbbreviation])},
+                value_column            : str(row[rrfString]),
+                additional_column       : {sourceAbbreviation : str(row[rrfSourceAbbreviation])},
             })
 
         #
         # Source Concept Unique Identifier
         #
-        if pd.notna(row[rffSourceCode]) and len(str(row[rffSourceCode])) > 0:
+        if pd.notna(row[rrfSourceCode]) and len(str(row[rrfSourceCode])) > 0:
             rows.append({
-                id_column               : row[rffConceptUniqueIdentifier],
+                id_column               : row[rrfConceptUniqueIdentifier],
                 attribute_column        : referenceClass,
-                value_column            : row[rffSourceCode],
-                additional_column       : {sourceAbbreviation : str(row[rffSourceAbbreviation])},
+                value_column            : row[rrfSourceCode],
+                additional_column       : {sourceAbbreviation : str(row[rrfSourceAbbreviation])},
             })
 
-    return (
-        pd.DataFrame(rows)
-        .drop_duplicates()
-        .reset_index(drop = True)
-    )
+    l.log(f"Transforming {len(data.index)} rows in EAV schema completed.")
+    l.log(f"Removing duplicated rows...")
+    data = (pd.DataFrame(rows)
+        .drop_duplicates(subset=[id_column, attribute_column, value_column])
+        .reset_index(drop = True))
+    l.log(f"Removing duplicated rows completed. {len(data.index)} rows left.")
+    return data
 
 def getDefinitions(
     data: pd.DataFrame,
@@ -244,11 +269,15 @@ def getDefinitions(
         - definition
     """
 
+    data = data[data[rrfSuppressibleFlag] == no].reset_index(drop = True)
+    rows = []
+    l = Logger()
+    l.log(f"Transforming {len(data.index)} rows in EAV schema...")
     rows = []
 
     for _, row in data.iterrows():
 
-        definition = row[rffDefinition]
+        definition = row[rrfDefinition]
 
         #
         # Ignore empty definitions
@@ -257,28 +286,30 @@ def getDefinitions(
             continue
 
         rows.append({
-            id_column               : row[rffConceptUniqueIdentifier],
+            id_column               : row[rrfConceptUniqueIdentifier],
             attribute_column        : definitionClass,
             value_column            : str(definition),
             additional_column: {
-                sourceAbbreviation: str(row[rffSourceAbbreviation])
+                sourceAbbreviation: str(row[rrfSourceAbbreviation])
             },
         })
 
-    return (
-        pd.DataFrame(rows)
-        .drop_duplicates()
-        .reset_index(drop=True)
-    )
+    l.log(f"Transforming {len(data.index)} rows in EAV schema completed.")
+    l.log(f"Removing duplicated rows...")
+    data = (pd.DataFrame(rows)
+        .drop_duplicates(subset=[id_column, attribute_column, value_column])
+        .reset_index(drop = True))
+    l.log(f"Removing duplicated rows completed. {len(data.index)} rows left.")
+    return data
 
 conceptPrefix        = "MRCONSO"
 definitionPrefix     = "MRDEF"
 
-_rffReadersByPrefix = {
+_rrfReadersByPrefix = {
     conceptPrefix: readMRCONSOFile,
     definitionPrefix : readMRDEFFile
 }
-_rffTransformersByPrefix = {
+_rrfTransformersByPrefix = {
     conceptPrefix: getConcepts,
     definitionPrefix: getDefinitions, 
 }
@@ -288,23 +319,25 @@ def readRFFFileByPath(
     id_column           : str,
     attribute_column    : str,
     value_column        : str,
-    additional_column   : str
+    additional_column   : str,
+    encoding            : str, 
+    separator           : str
 ) -> pd.DataFrame:
     """
     Read a single RFF file, choosing the appropriate reader function -
     and therefore the appropriate column layout - based on the file's
     own name. `file_path` must point directly to the file itself, not
     to the directory containing it. Raises ValueError if the filename
-    doesn't start with any of the known RFF prefixes.
+    doesn't start with any of the known RRF prefixes.
     """
     ret = None
     l = Logger()
     filename = os.path.basename(file_path)
 
-    for key in _rffReadersByPrefix.keys():
+    for key in _rrfReadersByPrefix.keys():
         if filename.startswith(key) and ret is None:
-            ret = _rffReadersByPrefix[key](file_path)
-            ret = _rffTransformersByPrefix[key](
+            ret = _rrfReadersByPrefix[key](file_path, encoding, separator)
+            ret = _rrfTransformersByPrefix[key](
                 ret, 
                 id_column, 
                 attribute_column, 
@@ -313,6 +346,6 @@ def readRFFFileByPath(
             )
             
     if ret is None:
-        l.log(f"'{filename}' doesn't match any known RFF file prefix.")
+        l.log(f"'{filename}' doesn't match any known RRF file prefix.")
 
     return ret

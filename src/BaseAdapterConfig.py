@@ -59,3 +59,9 @@ class BaseAdapterConfig(BaseModel):
 
     # Skip if the output file is already present. 
     skip_if_present: bool   = False
+
+    # The encoding of the files if necessary.
+    encoding: str           = "utf-8"
+
+    # The separator of tabular files if necessary.
+    separator: str          = "\t"
