@@ -51,8 +51,8 @@ class TestHPOAdapterInit:
         assert adapter.config.input_files == ["hp.owl"]
 
     def test_init_loads_output_settings_from_real_config(self, adapter):
-        assert adapter.config.output_folder == "../data/output/transformed/"
-        assert adapter.config.output_file_name == "hpo.csv"
+        assert adapter.config.output_folder == "../data/output/transformed/hpo/"
+        assert adapter.config.output_file == "hpo.csv"
 
     def test_init_applies_defaults_for_fields_not_set_in_config(self, adapter):
         # delimiter, encoding, and the EAV column names aren't overridden

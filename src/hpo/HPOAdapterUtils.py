@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from Logger         import Logger
 from owlready2      import *
-from rdflib         import Namespace, RDF
+from rdflib         import Namespace, RDF, XSD
 import pandas       as pd
 import os
 
@@ -173,6 +173,8 @@ def getSynonymsAndTypes(
         query = """
         SELECT ?hpoID ?synonym ?synclass ?syntype WHERE 
         {
+            FILTER NOT EXISTS { ?hpoID owl:deprecated true }
+            FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete "true" }
             {
                 # Direct class annotations without axiom metadata
                 ?hpoID ?synclass ?synonym .
@@ -212,6 +214,7 @@ def getSynonymsAndTypes(
                 "owl": OWL,
                 "obo": OBO,
                 "oboInOwl": OBOINOWL,
+                "xsd": XSD,
             }
         )
         
@@ -270,6 +273,8 @@ def getComments(
         # SPARQL query retrieves comments from both direct and axiom-based sources
         query = """
             SELECT DISTINCT ?hpoID ?comment WHERE {
+                FILTER NOT EXISTS { ?hpoID owl:deprecated true }
+                FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete "true" }
                 {
                     # Direct comment annotation
                     ?hpoID rdfs:comment ?comment .
@@ -292,6 +297,7 @@ def getComments(
                 "owl": OWL,
                 "obo": OBO,
                 "oboInOwl": OBOINOWL,
+                "xsd": XSD,
             }
         )
 
@@ -336,6 +342,8 @@ def getDefinitions(
         # Retrieve definitions from direct and axiom-based annotations
         query = """
             SELECT DISTINCT ?hpoID ?definition WHERE {
+                FILTER NOT EXISTS { ?hpoID owl:deprecated true }
+                FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete "true" }
                 {
                     ?hpoID obo:IAO_0000115 ?definition .
                 }
@@ -356,6 +364,7 @@ def getDefinitions(
                 "owl": OWL,
                 "obo": OBO,
                 "oboInOwl": OBOINOWL,
+                "xsd": XSD,
             }
         )
 
@@ -399,6 +408,8 @@ def getLabels(
         # Simple query for concept labels
         query = """
             SELECT ?hpoID ?label WHERE {
+                FILTER NOT EXISTS { ?hpoID owl:deprecated true }
+                FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete "true" }
                 ?hpoID rdfs:label ?label .
             }
         """
@@ -410,6 +421,7 @@ def getLabels(
                 "owl": OWL,
                 "obo": OBO,
                 "oboInOwl": OBOINOWL,
+                "xsd": XSD,
             }
         )
 
@@ -457,6 +469,10 @@ def getChildren(
         # Retrieve all subclass relationships
         query = """
             SELECT ?child ?parent WHERE {
+                FILTER NOT EXISTS { ?child owl:deprecated true }
+                FILTER NOT EXISTS { ?child oboInOwl:is_obsolete "true" }
+                FILTER NOT EXISTS { ?parent owl:deprecated true }
+                FILTER NOT EXISTS { ?parent oboInOwl:is_obsolete "true" }
                 ?child rdfs:subClassOf ?parent .
             }
         """
@@ -468,6 +484,7 @@ def getChildren(
                 "owl": OWL,
                 "obo": OBO,
                 "oboInOwl": OBOINOWL,
+                "xsd": XSD,
             }
         )
 
@@ -515,6 +532,8 @@ def getReferences(
         # Retrieve cross-references from both direct and axiom-based annotations
         query = """
             SELECT DISTINCT ?hpoID ?xref WHERE {
+                FILTER NOT EXISTS { ?hpoID owl:deprecated true }
+                FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete "true" }
                 {
                     ?hpoID oboInOwl:hasDbXref ?xref .
                 }
@@ -534,6 +553,7 @@ def getReferences(
                 "owl": OWL,
                 "obo": OBO,
                 "oboInOwl": OBOINOWL,
+                "xsd": XSD
             }
         )
 

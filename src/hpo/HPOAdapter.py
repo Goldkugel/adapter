@@ -97,6 +97,7 @@ class HPOAdapter(BaseAdapter):
                     l.log(f"Reduced to {ret} entities/rows in total.")
 
                     l.log("Removing rows with a '#' in the ID...")
+                    self.data[self.config.id_column] = self.data[self.config.id_column].astype(str)
                     self.data = self.data[
                         ~self.data[self.config.id_column].str.contains(
                             '#', 
