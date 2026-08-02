@@ -88,9 +88,7 @@ class SCTAdapter(BaseAdapter):
                                 self.config.encoding, 
                                 self.config.separator
                             ), 
-                            rf2SourceId, 
-                            self.config.encoding, 
-                            self.config.separator
+                            rf2SourceId
                         )
 
                 frames = []
