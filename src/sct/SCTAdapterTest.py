@@ -8,8 +8,8 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from unittest.mock      import MagicMock, patch
-from SCTAdapter         import SCTAdapter
-from SCTAdapterUtils    import rf2SourceId, conceptPrefix
+from .SCTAdapter        import SCTAdapter
+from .SCTAdapterUtils   import *
 import pandas           as pd
 import yaml
 import pytest

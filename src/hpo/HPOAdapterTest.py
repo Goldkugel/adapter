@@ -11,7 +11,8 @@ import pytest
 import pandas as pd
 from unittest.mock import MagicMock, patch
 
-from HPOAdapter import HPOAdapter
+from .HPOAdapter import HPOAdapter
+from ..BaseAdapter import standard_directory
 
 @pytest.fixture
 def adapter():

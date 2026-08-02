@@ -5,7 +5,7 @@ sys.dont_write_bytecode = True
 
 from abc                import ABC, abstractmethod
 from BaseAdapterConfig  import BaseAdapterConfig
-from Logger             import Logger
+from logger             import Logger
 from BaseAdapterUtils   import *
 import pandas           as pd
 import yaml

@@ -7,13 +7,12 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from BaseAdapter import *
-from Logger import Logger
-import pandas as pd
-import UMLSAdapterUtils as utils
+from ..BaseAdapter      import *
+from logger             import Logger
+import pandas           as pd
+from .UMLSAdapterUtils  import *
 
 config_keyword = "umls"
-
 
 class UMLSAdapter(BaseAdapter):
     """

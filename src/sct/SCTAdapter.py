@@ -7,10 +7,10 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from BaseAdapter        import *
-from BaseAdapterUtils   import *
-from Logger             import Logger
-from SCTAdapterUtils    import *
+from logger             import Logger
+from ..BaseAdapter      import *
+from ..BaseAdapterUtils import *
+from .SCTAdapterUtils   import *
 import pandas           as pd
 
 config_keyword = "sct"

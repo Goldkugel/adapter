@@ -9,8 +9,13 @@ dependencies = [
     "logger @ git+https://github.com/Goldkugel/logger.git@v1.0.6"
 ]
 
-[tool.setuptools.package-dir]
-"" = "src"
+[tool.setuptools]
+packages = [
+    "adapter",
+    "adapter.hpo",
+    "adapter.sct",
+    "adapter.umls"
+]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools.package-dir]
+"adapter" = "src"

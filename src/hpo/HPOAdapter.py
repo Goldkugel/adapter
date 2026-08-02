@@ -7,11 +7,12 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from BaseAdapter        import *
+from ..BaseAdapter      import *
 from owlready2          import get_ontology
-from Logger             import Logger
+from logger             import Logger
+from .HPOAdapterUtils   import *
 import pandas           as pd
-import HPOAdapterUtils  as utils
+
 import os
 
 config_keyword = "hpo"
@@ -57,14 +58,13 @@ class HPOAdapter(BaseAdapter):
                 hpo = get_ontology(path).load()
 
                 extractors = [
-                    utils.getLabels,
-                    utils.getDefinitions,
-                    utils.getComments,
-                    utils.getChildren,
-                    utils.getReferences,
-                    utils.getSynonymsAndTypes,
+                    getLabels,
+                    getDefinitions,
+                    getComments,
+                    getChildren,
+                    getReferences,
+                    getSynonymsAndTypes,
                 ]
-
                 frames = []
                 for extract in extractors:
                     frame = extract(

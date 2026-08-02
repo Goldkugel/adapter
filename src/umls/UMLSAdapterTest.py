@@ -8,7 +8,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from unittest.mock      import MagicMock, patch
-from UMLSAdapter        import UMLSAdapter
+from .UMLSAdapter       import UMLSAdapter
 import pandas           as pd
 import yaml
 import pytest

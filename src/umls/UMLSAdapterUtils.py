@@ -3,9 +3,9 @@ import sys
 # Prevent Python from generating .pyc bytecode files
 sys.dont_write_bytecode = True
 
-from Logger import Logger
-from pathlib import Path
-import pandas as pd
+from logger     import Logger
+from pathlib    import Path
+import pandas   as pd
 import os
 
 labelClass                      = "label"

@@ -7,7 +7,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from Logger         import Logger
+from logger         import Logger
 from owlready2      import *
 from rdflib         import Namespace, RDF, XSD
 import pandas       as pd
