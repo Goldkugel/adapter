@@ -1,6 +1,6 @@
 [project]
 name = "adapter"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
     "logger @ git+https://github.com/Goldkugel/logger.git@v1.0.5"
 ]
