@@ -8,10 +8,13 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from unittest.mock      import MagicMock, patch
-from .UMLSAdapter       import UMLSAdapter
+from .UMLSAdapter        import UMLSAdapter
 import pandas           as pd
 import yaml
 import pytest
+
+# Full module path where UMLSAdapter looks up imported attributes/modules
+PATCH_MODULE = "src.umls.UMLSAdapter"
 
 @pytest.fixture
 def config_path(tmp_path):
@@ -72,10 +75,10 @@ class TestUMLSAdapterLoadSkipping:
         assert adapter.load() == 0
         assert adapter.data is None
 
-    @patch("UMLSAdapter.isFile", return_value=True)
-    @patch("UMLSAdapter.utils")
+    @patch("os.path.isfile", return_value=True)
+    @patch(f"{PATCH_MODULE}.readRFFFileByPath")
     def test_load_skips_when_output_present_and_skip_if_present_true(
-        self, mock_utils, mock_is_file, tmp_path
+        self, mock_read_rff, mock_is_file, tmp_path
     ):
         config = {
             "adapter": {
@@ -94,30 +97,30 @@ class TestUMLSAdapterLoadSkipping:
 
         assert ret == 0
         assert adapter.data is None
-        mock_utils.readRFFFileByPath.assert_not_called()
+        mock_read_rff.assert_not_called()
 
-    @patch("UMLSAdapter.isFile", return_value=True)
-    @patch("UMLSAdapter.utils")
+    @patch("os.path.isfile", return_value=True)
+    @patch(f"{PATCH_MODULE}.readRFFFileByPath")
     def test_load_does_not_skip_when_skip_if_present_is_false_even_if_file_exists(
-        self, mock_utils, mock_is_file, adapter
+        self, mock_read_rff, mock_is_file, adapter
     ):
-        mock_utils.readRFFFileByPath.return_value = make_frame(
+        mock_read_rff.return_value = make_frame(
             adapter.config, ["C0001"], "label", ["Some Concept"]
         )
 
         adapter.load()
 
-        mock_utils.readRFFFileByPath.assert_called()
+        mock_read_rff.assert_called()
 
 
 class TestUMLSAdapterLoad:
 
-    @patch("UMLSAdapter.isFile", return_value=False)
-    @patch("UMLSAdapter.utils")
+    @patch("os.path.isfile", return_value=False)
+    @patch(f"{PATCH_MODULE}.readRFFFileByPath")
     def test_load_calls_readRFFFileByPath_for_every_configured_file_with_full_path_and_config(
-        self, mock_utils, mock_is_file, adapter
+        self, mock_read_rff, mock_is_file, adapter
     ):
-        mock_utils.readRFFFileByPath.return_value = make_frame(
+        mock_read_rff.return_value = make_frame(
             adapter.config, ["C0001"], "label", ["Some Concept"]
         )
 
@@ -128,11 +131,11 @@ class TestUMLSAdapterLoad:
             for f in adapter.config.input_files
         ]
         actual_calls = [
-            call.args[0] for call in mock_utils.readRFFFileByPath.call_args_list
+            call.args[0] for call in mock_read_rff.call_args_list
         ]
         assert actual_calls == expected_calls
 
-        for call in mock_utils.readRFFFileByPath.call_args_list:
+        for call in mock_read_rff.call_args_list:
             _, id_col, attr_col, val_col, add_col, encoding, separator = call.args
             assert id_col == adapter.config.id_column
             assert attr_col == adapter.config.attribute_column
@@ -141,12 +144,12 @@ class TestUMLSAdapterLoad:
             assert encoding == adapter.config.encoding
             assert separator == adapter.config.separator
 
-    @patch("UMLSAdapter.isFile", return_value=False)
-    @patch("UMLSAdapter.utils")
+    @patch("os.path.isfile", return_value=False)
+    @patch(f"{PATCH_MODULE}.readRFFFileByPath")
     def test_load_merges_frames_and_returns_row_count(
-        self, mock_utils, mock_is_file, adapter
+        self, mock_read_rff, mock_is_file, adapter
     ):
-        mock_utils.readRFFFileByPath.side_effect = [
+        mock_read_rff.side_effect = [
             make_frame(adapter.config, ["C0001", "C0002"], "label", ["A", "B"]),
             make_frame(adapter.config, ["C0001"], "definition", ["A definition."]),
         ]
@@ -159,12 +162,12 @@ class TestUMLSAdapterLoad:
             "label", "definition"
         }
 
-    @patch("UMLSAdapter.isFile", return_value=False)
-    @patch("UMLSAdapter.utils")
+    @patch("os.path.isfile", return_value=False)
+    @patch(f"{PATCH_MODULE}.readRFFFileByPath")
     def test_load_skips_files_whose_reader_returns_none_or_empty(
-        self, mock_utils, mock_is_file, adapter
+        self, mock_read_rff, mock_is_file, adapter
     ):
-        mock_utils.readRFFFileByPath.side_effect = [
+        mock_read_rff.side_effect = [
             None,
             make_frame(adapter.config, [], "definition", []),
         ]
@@ -174,10 +177,10 @@ class TestUMLSAdapterLoad:
         assert ret == 0
         assert adapter.data is None
 
-    @patch("UMLSAdapter.isFile", return_value=False)
-    @patch("UMLSAdapter.utils")
+    @patch("os.path.isfile", return_value=False)
+    @patch(f"{PATCH_MODULE}.readRFFFileByPath")
     def test_load_removes_rows_with_missing_or_empty_id(
-        self, mock_utils, mock_is_file, adapter
+        self, mock_read_rff, mock_is_file, adapter
     ):
         frame = make_frame(
             adapter.config,
@@ -185,17 +188,17 @@ class TestUMLSAdapterLoad:
             "label",
             ["Valid", "Missing ID", "Empty ID"],
         )
-        mock_utils.readRFFFileByPath.return_value = frame
+        mock_read_rff.return_value = frame
 
         adapter.load()
 
         assert len(adapter.data.index) == 1
         assert adapter.data.iloc[0][adapter.config.value_column] == "Valid"
 
-    @patch("UMLSAdapter.isFile", return_value=False)
-    @patch("UMLSAdapter.utils")
+    @patch("os.path.isfile", return_value=False)
+    @patch(f"{PATCH_MODULE}.readRFFFileByPath")
     def test_load_removes_rows_with_missing_or_empty_value(
-        self, mock_utils, mock_is_file, adapter
+        self, mock_read_rff, mock_is_file, adapter
     ):
         frame = make_frame(
             adapter.config,
@@ -203,17 +206,17 @@ class TestUMLSAdapterLoad:
             "label",
             ["Valid", None, ""],
         )
-        mock_utils.readRFFFileByPath.return_value = frame
+        mock_read_rff.return_value = frame
 
         adapter.load()
 
         assert len(adapter.data.index) == 1
         assert adapter.data.iloc[0][adapter.config.id_column] == "C0001"
 
-    @patch("UMLSAdapter.isFile", return_value=False)
-    @patch("UMLSAdapter.utils")
+    @patch("os.path.isfile", return_value=False)
+    @patch(f"{PATCH_MODULE}.readRFFFileByPath")
     def test_load_removes_duplicate_id_attribute_value_rows(
-        self, mock_utils, mock_is_file, adapter
+        self, mock_read_rff, mock_is_file, adapter
     ):
         frame = make_frame(
             adapter.config,
@@ -221,7 +224,7 @@ class TestUMLSAdapterLoad:
             "label",
             ["Same Term", "Same Term", "Different Term"],
         )
-        mock_utils.readRFFFileByPath.return_value = frame
+        mock_read_rff.return_value = frame
 
         ret = adapter.load()
 

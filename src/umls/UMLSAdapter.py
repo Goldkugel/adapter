@@ -60,7 +60,7 @@ class UMLSAdapter(BaseAdapter):
                         filename,
                     )
 
-                    frame = utils.readRFFFileByPath(
+                    frame = readRFFFileByPath(
                         path,
                         self.config.id_column,
                         self.config.attribute_column,

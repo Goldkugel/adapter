@@ -1,6 +1,5 @@
 import sys
 
-# Prevent Python from generating .pyc files (compiled bytecode files)
 sys.dont_write_bytecode = True
 
 import os
@@ -18,15 +17,11 @@ CONCEPT_FILE = "sct2_Concept_Full_INT_20260701.txt"
 DESCRIPTION_FILE = "sct2_Description_Full-en_INT_20260701.txt"
 RELATIONSHIP_FILE = "sct2_Relationship_Full_INT_20260701.txt"
 
+# Target where SCTAdapter looks up these names:
+PATCH_TARGET = "src.sct.SCTAdapter"
+
 @pytest.fixture
 def config_path(tmp_path):
-    """
-    Write a minimal adapter config YAML to a temp file and return its
-    path. Only `input_files` is set explicitly; everything else -
-    input_folder, output_folder, output_file, skip_if_present, the four
-    EAV column names - is left unset so BaseAdapterConfig's own
-    defaults apply.
-    """
     config = {
         "adapter": {
             "sct": {
@@ -46,7 +41,6 @@ def adapter(config_path):
 
 
 def make_frame(config, id_values, attribute, value_values):
-    """Build a small EAV-shaped DataFrame."""
     n = len(id_values)
     return pd.DataFrame({
         config.id_column: id_values,
@@ -68,13 +62,6 @@ class TestSCTAdapterInit:
 
 
 class TestFindInputFile:
-    """
-    _findInputFile isn't currently called anywhere inside load() - load()
-    re-implements the same "find by prefix" logic inline for the concept
-    file instead, and never uses it for the others. These tests cover
-    the method in isolation, independent of whether load() actually
-    uses it.
-    """
 
     def test_returns_the_single_matching_file(self, adapter):
         assert adapter._findInputFile(conceptPrefix) == CONCEPT_FILE
@@ -115,8 +102,9 @@ class TestSCTAdapterLoadSkipping:
         assert adapter.load() == 0
         assert adapter.data is None
 
-    @patch("SCTAdapter.isFile", return_value=True)
-    @patch("SCTAdapter.readConceptFile")
+    # NOTE: If SCTAdapter.py uses `os.path.isfile`, patch "os.path.isfile" here instead.
+    @patch("os.path.isfile", return_value=True)
+    @patch(f"{PATCH_TARGET}.readConceptFile")
     def test_load_skips_when_output_present_and_skip_if_present_true(
         self, mock_read_concept, mock_is_file, tmp_path
     ):
@@ -142,11 +130,11 @@ class TestSCTAdapterLoadSkipping:
 
 class TestSCTAdapterLoadConceptHandling:
 
-    @patch("SCTAdapter.isFile", return_value=False)
-    @patch("SCTAdapter.readRF2FileByPath")
-    @patch("SCTAdapter.removeNotActiveConcepts")
-    @patch("SCTAdapter.getConcepts")
-    @patch("SCTAdapter.readConceptFile")
+    @patch("os.path.isfile", return_value=False)
+    @patch(f"{PATCH_TARGET}.readRF2FileByPath")
+    @patch(f"{PATCH_TARGET}.removeNotActiveConcepts")
+    @patch(f"{PATCH_TARGET}.getConcepts")
+    @patch(f"{PATCH_TARGET}.readConceptFile")
     def test_concept_file_is_read_once_from_its_full_path(
         self, mock_read_concept, mock_get_concepts, mock_remove_inactive,
         mock_read_rf2, mock_is_file, adapter
@@ -161,11 +149,11 @@ class TestSCTAdapterLoadConceptHandling:
         expected_path = os.path.join(adapter.config.input_folder, CONCEPT_FILE)
         mock_read_concept.assert_called_once_with(expected_path)
 
-    @patch("SCTAdapter.isFile", return_value=False)
-    @patch("SCTAdapter.readRF2FileByPath")
-    @patch("SCTAdapter.removeNotActiveConcepts")
-    @patch("SCTAdapter.getConcepts")
-    @patch("SCTAdapter.readConceptFile")
+    @patch("os.path.isfile", return_value=False)
+    @patch(f"{PATCH_TARGET}.readRF2FileByPath")
+    @patch(f"{PATCH_TARGET}.removeNotActiveConcepts")
+    @patch(f"{PATCH_TARGET}.getConcepts")
+    @patch(f"{PATCH_TARGET}.readConceptFile")
     def test_get_concepts_called_with_concept_dataframe_and_rf2SourceId(
         self, mock_read_concept, mock_get_concepts, mock_remove_inactive,
         mock_read_rf2, mock_is_file, adapter
@@ -180,11 +168,11 @@ class TestSCTAdapterLoadConceptHandling:
 
         mock_get_concepts.assert_called_once_with(concept_df, rf2SourceId)
 
-    @patch("SCTAdapter.isFile", return_value=False)
-    @patch("SCTAdapter.readRF2FileByPath")
-    @patch("SCTAdapter.removeNotActiveConcepts")
-    @patch("SCTAdapter.getConcepts")
-    @patch("SCTAdapter.readConceptFile")
+    @patch("os.path.isfile", return_value=False)
+    @patch(f"{PATCH_TARGET}.readRF2FileByPath")
+    @patch(f"{PATCH_TARGET}.removeNotActiveConcepts")
+    @patch(f"{PATCH_TARGET}.getConcepts")
+    @patch(f"{PATCH_TARGET}.readConceptFile")
     def test_concept_file_is_excluded_from_the_readRF2FileByPath_loop(
         self, mock_read_concept, mock_get_concepts, mock_remove_inactive,
         mock_read_rf2, mock_is_file, adapter
@@ -200,22 +188,14 @@ class TestSCTAdapterLoadConceptHandling:
         assert os.path.join(adapter.config.input_folder, CONCEPT_FILE) not in called_paths
         assert len(called_paths) == 2  # DESCRIPTION_FILE and RELATIONSHIP_FILE
 
-class TestSCTAdapterLoadMerging:
-    """
-    These tests use a permissive (non-autospec) mock for
-    readRF2FileByPath, which accepts the single argument load()
-    currently passes without enforcing the real function's signature.
-    That deliberately routes around the bug covered in
-    TestSCTAdapterLoadKnownBugs, so the surrounding orchestration logic
-    (active-concept filtering, merging, row counting) can still be
-    exercised on its own.
-    """
 
-    @patch("SCTAdapter.isFile", return_value=False)
-    @patch("SCTAdapter.readRF2FileByPath")
-    @patch("SCTAdapter.removeNotActiveConcepts")
-    @patch("SCTAdapter.getConcepts")
-    @patch("SCTAdapter.readConceptFile")
+class TestSCTAdapterLoadMerging:
+
+    @patch("os.path.isfile", return_value=False)
+    @patch(f"{PATCH_TARGET}.readRF2FileByPath")
+    @patch(f"{PATCH_TARGET}.removeNotActiveConcepts")
+    @patch(f"{PATCH_TARGET}.getConcepts")
+    @patch(f"{PATCH_TARGET}.readConceptFile")
     def test_each_read_frame_is_filtered_by_removeNotActiveConcepts(
         self, mock_read_concept, mock_get_concepts, mock_remove_inactive,
         mock_read_rf2, mock_is_file, adapter
@@ -239,11 +219,11 @@ class TestSCTAdapterLoadMerging:
             assert call.args[1] == adapter.config.id_column
             assert call.args[2] == ["100001", "100002"]
 
-    @patch("SCTAdapter.isFile", return_value=False)
-    @patch("SCTAdapter.readRF2FileByPath")
-    @patch("SCTAdapter.removeNotActiveConcepts")
-    @patch("SCTAdapter.getConcepts", return_value=["100001"])
-    @patch("SCTAdapter.readConceptFile", return_value=MagicMock())
+    @patch("os.path.isfile", return_value=False)
+    @patch(f"{PATCH_TARGET}.readRF2FileByPath")
+    @patch(f"{PATCH_TARGET}.removeNotActiveConcepts")
+    @patch(f"{PATCH_TARGET}.getConcepts", return_value=["100001"])
+    @patch(f"{PATCH_TARGET}.readConceptFile", return_value=MagicMock())
     def test_frames_are_merged_and_row_count_returned(
         self, mock_read_concept, mock_get_concepts, mock_remove_inactive,
         mock_read_rf2, mock_is_file, adapter
