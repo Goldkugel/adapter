@@ -77,7 +77,8 @@ class HPOAdapter(BaseAdapter):
                     if frame is not None:
                         frames.append(frame)
 
-                l.log(f"Loading completed.")
+                l.log("Loading the Human Phenotype Ontology " \
+                     f"(HPO) from '{self.config.input_files[0]}' completed.")
                 if len(frames) > 0:
                     l.log("Merging data...")
                     self.data = pd.concat(frames, ignore_index = True)

@@ -17,5 +17,5 @@ packages = [
     "adapter.umls"
 ]
 
-[tool.setuptools.package-dir]
-"adapter" = "src"
+[tool.setuptools]
+py-modules = ["Embedder", "EmbedderConfig"]

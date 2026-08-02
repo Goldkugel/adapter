@@ -26,14 +26,14 @@ class BaseAdapterConfig(BaseModel):
 
     # Path to the raw ontology file (or directory, for multi-file formats
     # like SNOMED RF2) that this adapter should load.
-    input_folder: str       = "../data/input/"
+    input_folder: str       = "./data/input/"
 
     # The list of input files to process.
     input_files: list       = []
 
     # Directory where the output CSV file will be written (relative or
     # absolute path).
-    output_folder: str      = "../data/output/transformed/"
+    output_folder: str      = "./data/output/transformed/"
 
     # Name of the CSV file to write to within `output_folder`.
     output_file: str        = "ontology.csv"

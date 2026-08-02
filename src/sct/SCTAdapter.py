@@ -68,16 +68,26 @@ class SCTAdapter(BaseAdapter):
             if isFile(output_file) and self.config.skip_if_present:
                 l.log("Skipping loading since output file is already present.")
             else:
-                l.log(f"Loading SNOMED CT from {len(self.config.input_files)} files...")
+                l.log("Loading SNOMED CT from " \
+                      f"{len(self.config.input_files)} files...")
 
                 concepts = None
 
                 files = self.config.input_files.copy()
                 for input_file in self.config.input_files:
-                    if str(input_file).startswith(conceptPrefix) and concepts is None:
+                    if (str(input_file).startswith(conceptPrefix) and 
+                        concepts is None):
                         files.remove(input_file)
-                        input_file = os.path.join(self.config.input_folder, input_file)
-                        concepts = getConcepts(readConceptFile(input_file), rf2SourceId)
+                        input_file = os.path.join(
+                            self.config.input_folder, 
+                            input_file
+                        )
+                        concepts = getConcepts(
+                            readConceptFile(input_file), 
+                            rf2SourceId, 
+                            self.config.encoding, 
+                            self.config.separator
+                        )
 
                 frames = []
 
@@ -97,7 +107,11 @@ class SCTAdapter(BaseAdapter):
                         self.config.separator
                     )
                     if frame is not None:
-                        frame = removeNotActiveConcepts(frame, self.config.id_column, concepts)
+                        frame = removeNotActiveConcepts(
+                            frame, 
+                            self.config.id_column, 
+                            concepts
+                        )
                         if len(frame.index) > 0:
                             frames.append(frame)
 
@@ -151,10 +165,12 @@ class SCTAdapter(BaseAdapter):
                 else:
                     l.log("No data found. Is it the correct file?")
 
-                l.log(f"Loading SNOMED CT from {len(self.config.input_files)} files completed.")
+                l.log("Loading SNOMED CT from " \
+                      f"{len(self.config.input_files)} files completed.")
 
         else:
-            l.log("No input files found. Were they set in the configuration file?")
+            l.log("No input files found. Were they set in the " \
+                  "configuration file?")
 
         return ret
 
