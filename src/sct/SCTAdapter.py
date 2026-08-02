@@ -83,7 +83,11 @@ class SCTAdapter(BaseAdapter):
                             input_file
                         )
                         concepts = getConcepts(
-                            readConceptFile(input_file), 
+                            readConceptFile(
+                                input_file,
+                                self.config.encoding, 
+                                self.config.separator
+                            ), 
                             rf2SourceId, 
                             self.config.encoding, 
                             self.config.separator
