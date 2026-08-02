@@ -1,9 +1,7 @@
 data/input/sct/*
-data/output/transformed/sct/sct.csv
+data/output/transformed/*
 data/input/umls/*
-data/output/transformed/umls/umls.csv
-data/output/transformed/hpo/hpo.csv
-data/input/hpo/hp.owl
+data/input/hpo/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
