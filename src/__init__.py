@@ -4,7 +4,7 @@ import sys
 sys.dont_write_bytecode = True
 
 from .BaseAdapter           import BaseAdapter
-from .BaseAdapterUtils      import *
+from .BaseAdapterUtils      import writeHugeCSV, writeCSV
 from .hpo.HPOAdapter        import HPOAdapter
 from .sct.SCTAdapter        import SCTAdapter
 from .umls.UMLSAdapter      import UMLSAdapter
@@ -12,6 +12,8 @@ from .umls.UMLSAdapter      import UMLSAdapter
 __all__ = [
     "BaseAdapter",
     "HPOAdapter",
+    "writeHugeCSV",
+    "writeCSV",
     "SCTAdapter",
     "UMLSAdapter",
 ]
