@@ -2,6 +2,13 @@ from logger     import Logger
 import pandas   as pd
 import os
 
+labelClass                      = "label"
+definitionClass                 = "definition"
+commentClass                    = "comment"
+referenceClass                  = "reference"
+childrenClass                   = "child"
+synonymClass                    = "synonym"
+
 def writeCSV(
     data: pd.DataFrame = None,
     file: str = "",

@@ -3,17 +3,11 @@ import sys
 # Prevent Python from generating .pyc bytecode files
 sys.dont_write_bytecode = True
 
-from logger     import Logger
-from pathlib    import Path
-import pandas   as pd
+from BaseAdapterUtils   import labelClass, definitionClass, referenceClass, synonymClass
+from logger             import Logger
+from pathlib            import Path
+import pandas           as pd
 import os
-
-labelClass                      = "label"
-definitionClass                 = "definition"
-commentClass                    = "comment"
-referenceClass                  = "reference"
-childrenClass                   = "child"
-synonymClass                    = "synonym"
 
 yes = "Y"
 no = "N"

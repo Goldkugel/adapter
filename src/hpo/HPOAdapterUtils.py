@@ -7,18 +7,12 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from logger         import Logger
-from owlready2      import *
-from rdflib         import Namespace, RDF, XSD
-import pandas       as pd
+from logger             import Logger
+from BaseAdapterUtils   import labelClass, definitionClass, commentClass, referenceClass, childrenClass, synonymClass
+from owlready2          import *
+from rdflib             import Namespace, RDF, XSD
+import pandas           as pd
 import os
-
-labelClass                      = "label"
-definitionClass                 = "definition"
-commentClass                    = "comment"
-referenceClass                  = "reference"
-childrenClass                   = "child"
-synonymClass                    = "synonym"
 
 semanticClass                   = "semantic_class"
 exactSynonymClass               = "exact"

@@ -7,14 +7,9 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
+from BaseAdapterUtils   import labelClass, definitionClass, referenceClass, childrenClass, synonymClass
 from logger             import Logger
 import pandas           as pd
-
-labelClass                      = "label"
-definitionClass                 = "definition"
-referenceClass                  = "reference"
-childrenClass                   = "child"
-synonymClass                    = "synonym"
 
 referenceOntology               = "reference_ontology"
 
