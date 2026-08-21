@@ -1,6 +1,7 @@
 from logger     import Logger
 import pandas   as pd
 import os
+import csv
 
 labelClass                      = "label"
 definitionClass                 = "definition"
@@ -53,7 +54,8 @@ def writeCSV(
                 file,
                 sep=separator,
                 encoding=encoding,
-                index=False
+                index=False,
+                quoting=csv.QUOTE_ALL
             )
 
             # Log that the write completed.
@@ -119,5 +121,7 @@ def writeHugeCSV(
         os.replace(tmpfile, file)
 
         l.log("Replacing original data with temporary data completed.")
+    else:
+        l.log("Nothing written, therefore not replacing the data.")
 
     return ret
