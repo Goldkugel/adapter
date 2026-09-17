@@ -1,24 +1,39 @@
-import sys
+"""
+Tests for SCTAdapter and SCTAdapterUtils.
 
-sys.dont_write_bytecode = True
+Contains five test classes:
+- TestSCTAdapterInit: unit tests for configuration loading via __init__.
+- TestFindInputFile: unit tests for the _findInputFile helper method.
+- TestSCTAdapterLoadSkipping: tests for the skip-if-present and no-input-files paths.
+- TestSCTAdapterLoadConceptHandling: tests for Concept file reading and filtering.
+- TestSCTAdapterLoadMerging: tests for DataFrame merging and row count.
+"""
+
+from __future__ import annotations
 
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-
-from unittest.mock      import MagicMock, patch
+from unittest.mock      import MagicMock, patch, call
 from .SCTAdapter        import SCTAdapter
-from .SCTAdapterUtils   import *
+from .SCTAdapterUtils   import (
+    conceptPrefix, rf2SourceId,
+    descriptionPrefix, relationshipPrefix,
+)
 import pandas           as pd
 import yaml
 import pytest
 
-CONCEPT_FILE = "sct2_Concept_Full_INT_20260701.txt"
-DESCRIPTION_FILE = "sct2_Description_Full-en_INT_20260701.txt"
+CONCEPT_FILE      = "sct2_Concept_Full_INT_20260701.txt"
+DESCRIPTION_FILE  = "sct2_Description_Full-en_INT_20260701.txt"
 RELATIONSHIP_FILE = "sct2_Relationship_Full_INT_20260701.txt"
 
-# Target where SCTAdapter looks up these names:
+# unittest.mock patches names where they are looked up, not where they
+# are defined. SCTAdapter imports readConceptFile, readRF2FileByPath,
+# getConcepts, and removeNotActiveConcepts into its own namespace, so
+# they must be patched under "src.sct.SCTAdapter" rather than under
+# "src.sct.SCTAdapterUtils" where they are originally defined.
 PATCH_TARGET = "src.sct.SCTAdapter"
+
 
 @pytest.fixture
 def config_path(tmp_path):
@@ -41,16 +56,23 @@ def adapter(config_path):
 
 
 def make_frame(config, id_values, attribute, value_values):
+    """Build a minimal EAV DataFrame for use in tests."""
     n = len(id_values)
     return pd.DataFrame({
-        config.id_column: id_values,
-        config.attribute_column: [attribute] * n,
-        config.value_column: value_values,
+        config.id_column        : id_values,
+        config.attribute_column : [attribute] * n,
+        config.value_column     : value_values,
         config.additional_column: [{} for _ in range(n)],
     })
 
 
 class TestSCTAdapterInit:
+    """
+    Unit tests for SCTAdapter.__init__.
+
+    Verifies that configuration values are correctly loaded from the
+    YAML file and that self.data is unset before load() is called.
+    """
 
     def test_init_loads_config_from_yaml(self, adapter):
         assert adapter.config.input_files == [
@@ -62,6 +84,12 @@ class TestSCTAdapterInit:
 
 
 class TestFindInputFile:
+    """
+    Unit tests for SCTAdapter._findInputFile.
+
+    Verifies that the helper correctly identifies, raises on missing,
+    and raises on ambiguous prefix matches.
+    """
 
     def test_returns_the_single_matching_file(self, adapter):
         assert adapter._findInputFile(conceptPrefix) == CONCEPT_FILE
@@ -70,7 +98,7 @@ class TestFindInputFile:
         with pytest.raises(FileNotFoundError):
             adapter._findInputFile("der2_sRefset_SimpleMapFull")
 
-    def test_raises_value_error_when_multiple_files_match(self, config_path, tmp_path):
+    def test_raises_value_error_when_multiple_files_match(self, tmp_path):
         config = {
             "adapter": {
                 "sct": {
@@ -91,6 +119,10 @@ class TestFindInputFile:
 
 
 class TestSCTAdapterLoadSkipping:
+    """
+    Tests for the early-exit paths in SCTAdapter.load():
+    no input files configured, and skip_if_present when output exists.
+    """
 
     def test_load_returns_zero_when_no_input_files_configured(self, tmp_path):
         config = {"adapter": {"sct": {"input_files": []}}}
@@ -102,7 +134,6 @@ class TestSCTAdapterLoadSkipping:
         assert adapter.load() == 0
         assert adapter.data is None
 
-    # NOTE: If SCTAdapter.py uses `os.path.isfile`, patch "os.path.isfile" here instead.
     @patch("os.path.isfile", return_value=True)
     @patch(f"{PATCH_TARGET}.readConceptFile")
     def test_load_skips_when_output_present_and_skip_if_present_true(
@@ -129,6 +160,10 @@ class TestSCTAdapterLoadSkipping:
 
 
 class TestSCTAdapterLoadConceptHandling:
+    """
+    Tests for the Concept file reading, active-concept extraction,
+    and EAV extraction loop in SCTAdapter.load().
+    """
 
     @patch("os.path.isfile", return_value=False)
     @patch(f"{PATCH_TARGET}.readRF2FileByPath")
@@ -147,7 +182,11 @@ class TestSCTAdapterLoadConceptHandling:
         adapter.load()
 
         expected_path = os.path.join(adapter.config.input_folder, CONCEPT_FILE)
-        mock_read_concept.assert_called_once_with(expected_path)
+        mock_read_concept.assert_called_once_with(
+            expected_path,
+            adapter.config.encoding,
+            adapter.config.separator,
+        )
 
     @patch("os.path.isfile", return_value=False)
     @patch(f"{PATCH_TARGET}.readRF2FileByPath")
@@ -184,12 +223,16 @@ class TestSCTAdapterLoadConceptHandling:
 
         adapter.load()
 
-        called_paths = [call.args[0] for call in mock_read_rf2.call_args_list]
+        called_paths = [c.args[0] for c in mock_read_rf2.call_args_list]
         assert os.path.join(adapter.config.input_folder, CONCEPT_FILE) not in called_paths
         assert len(called_paths) == 2  # DESCRIPTION_FILE and RELATIONSHIP_FILE
 
 
 class TestSCTAdapterLoadMerging:
+    """
+    Tests for the DataFrame merging, deduplication, and row-count
+    return value in SCTAdapter.load().
+    """
 
     @patch("os.path.isfile", return_value=False)
     @patch(f"{PATCH_TARGET}.readRF2FileByPath")
@@ -202,7 +245,7 @@ class TestSCTAdapterLoadMerging:
     ):
         mock_read_concept.return_value = MagicMock()
         mock_get_concepts.return_value = ["100001", "100002"]
-        raw_description_frame = MagicMock(name="raw_description_frame")
+        raw_description_frame  = MagicMock(name="raw_description_frame")
         raw_relationship_frame = MagicMock(name="raw_relationship_frame")
         mock_read_rf2.side_effect = [raw_description_frame, raw_relationship_frame]
         mock_remove_inactive.return_value = make_frame(
@@ -211,13 +254,11 @@ class TestSCTAdapterLoadMerging:
 
         adapter.load()
 
-        actual_filtered_frames = [
-            call.args[0] for call in mock_remove_inactive.call_args_list
-        ]
+        actual_filtered_frames = [c.args[0] for c in mock_remove_inactive.call_args_list]
         assert actual_filtered_frames == [raw_description_frame, raw_relationship_frame]
-        for call in mock_remove_inactive.call_args_list:
-            assert call.args[1] == adapter.config.id_column
-            assert call.args[2] == ["100001", "100002"]
+        for c in mock_remove_inactive.call_args_list:
+            assert c.args[1] == adapter.config.id_column
+            assert c.args[2] == ["100001", "100002"]
 
     @patch("os.path.isfile", return_value=False)
     @patch(f"{PATCH_TARGET}.readRF2FileByPath")
@@ -237,9 +278,11 @@ class TestSCTAdapterLoadMerging:
         ret = adapter.load()
 
         assert ret == 3
-        assert len(adapter.data.index) == 3
+        assert len(adapter.data) == 3
         assert set(adapter.data[adapter.config.attribute_column]) == {"label", "child"}
 
 
 if __name__ == "__main__":
+    import sys
+    import pytest
     sys.exit(pytest.main([__file__, "-v"]))

@@ -1,21 +1,27 @@
-import sys
+"""
+Concrete adapter for the Human Phenotype Ontology (HPO).
 
-# Prevent Python from generating .pyc files (compiled bytecode files)
-sys.dont_write_bytecode = True
+Loads an OWL-format HPO file via owlready2, runs each extractor from
+HPOAdapterUtils against it, and concatenates the results into a single
+EAV DataFrame stored in self.data.
+"""
+
+from __future__ import annotations
 
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-
-from ..BaseAdapter      import *
+from ..BaseAdapter      import BaseAdapter, standard_directory
+from ..BaseAdapterUtils import isFile
 from owlready2          import get_ontology
 from logger             import Logger
-from .HPOAdapterUtils   import *
-import pandas           as pd
-
-import os
+from .HPOAdapterUtils   import (
+    getLabels, getDefinitions, getComments,
+    getChildren, getReferences, getSynonymsAndTypes,
+)
+import pandas as pd
 
 config_keyword = "hpo"
+
 
 class HPOAdapter(BaseAdapter):
     """
@@ -34,27 +40,30 @@ class HPOAdapter(BaseAdapter):
     def load(self) -> int:
         """
         Load the HPO OWL file and populate self.data with all
-        extracted EAV rows. Returns the number of rows loaded.
+        extracted EAV rows.
+
+        Returns
+        -------
+        int
+            Number of EAV rows loaded into self.data.
         """
         ret = 0
         l = Logger()
-        
-        if len(self.config.input_files) > 0:
+
+        if self.config.input_files:
 
             output_file = os.path.join(
-                self.config.output_folder, 
+                self.config.output_folder,
                 self.config.output_file
             )
 
             if isFile(output_file) and self.config.skip_if_present:
                 l.log("Skipping loading since output file is already present.")
             else:
-                l.log("Loading the Human Phenotype Ontology " \
-                     f"(HPO) from '{self.config.input_files[0]}'...")
-                path = os.path.join(
-                    self.config.input_folder, 
-                    self.config.input_files[0]
-                )
+                input_file = self.config.input_files[0]
+                l.log(f"Loading the Human Phenotype Ontology (HPO) from '{input_file}'...")
+
+                path = os.path.join(self.config.input_folder, input_file)
                 hpo = get_ontology(path).load()
 
                 extractors = [
@@ -65,6 +74,7 @@ class HPOAdapter(BaseAdapter):
                     getReferences,
                     getSynonymsAndTypes,
                 ]
+
                 frames = []
                 for extract in extractors:
                     frame = extract(
@@ -77,48 +87,44 @@ class HPOAdapter(BaseAdapter):
                     if frame is not None:
                         frames.append(frame)
 
-                l.log("Loading the Human Phenotype Ontology " \
-                     f"(HPO) from '{self.config.input_files[0]}' completed.")
-                if len(frames) > 0:
+                if frames:
                     l.log("Merging data...")
-                    self.data = pd.concat(frames, ignore_index = True)
+                    self.data = pd.concat(frames, ignore_index=True)
                     l.log("Merging data completed.")
 
                 if self.data is not None:
-                    ret = len(self.data.index)
+                    ret = len(self.data)
                     l.log(f"Found {ret} entities/rows in total.")
 
                     l.log("Removing rows without an ID...")
-                    self.data = self.data[(
-                        self.data[self.config.id_column].notna()) & (
-                        self.data[self.config.id_column] != ''
-                    )]
+                    self.data = self.data[
+                        self.data[self.config.id_column].notna() &
+                        (self.data[self.config.id_column] != '')
+                    ]
                     l.log("Removing rows without an ID completed.")
-                    ret = len(self.data.index)
+                    ret = len(self.data)
                     l.log(f"Reduced to {ret} entities/rows in total.")
 
                     l.log("Removing rows with a '#' in the ID...")
                     self.data[self.config.id_column] = self.data[self.config.id_column].astype(str)
                     self.data = self.data[
-                        ~self.data[self.config.id_column].str.contains(
-                            '#', 
-                            na = False
-                        )
+                        ~self.data[self.config.id_column].str.contains('#', na=False)
                     ]
                     l.log("Removing rows with a '#' in the ID completed.")
-                    ret = len(self.data.index)
+                    ret = len(self.data)
                     l.log(f"Reduced to {ret} entities/rows in total.")
                 else:
                     l.log("No data found. Is it the correct file?")
 
-                l.log("Loading the Human Phenotype Ontology " \
-                     f"(HPO) from '{self.config.input_files[0]}' completed.")
+                l.log(f"Loading the Human Phenotype Ontology (HPO) from '{input_file}' completed.")
         else:
             l.log("No input file found. Was it set in the configuration file?")
 
         return ret
 
+
 if __name__ == "__main__":
+    # Quick manual test: load the HPO and write the result to CSV.
     a = HPOAdapter()
     a.load()
     a.to_csv()

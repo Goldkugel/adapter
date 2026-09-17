@@ -1,54 +1,72 @@
-import sys
+"""
+Utility functions and constants for the HPO adapter.
 
-# Prevent Python from generating .pyc bytecode files
-sys.dont_write_bytecode = True
+Provides SPARQL-based extractors for labels, definitions, comments,
+children, references, and synonyms from an OWL-format HPO ontology,
+as well as helper functions for normalising concept IDs and synonym
+class/type strings.
+"""
 
-import os
-
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from __future__ import annotations
 
 from logger             import Logger
-from BaseAdapterUtils   import labelClass, definitionClass, commentClass, referenceClass, childrenClass, synonymClass
-from owlready2          import *
-from rdflib             import Namespace, RDF, XSD
+from ..BaseAdapterUtils import labelClass, definitionClass, commentClass, referenceClass, childrenClass, synonymClass
+from owlready2          import Ontology
+from rdflib             import Namespace, XSD
 import pandas           as pd
-import os
 
-semanticClass                   = "semantic_class"
-exactSynonymClass               = "exact"
-relatedSynonymClass             = "related"
-broadSynonymClass               = "broad"
-narrowSynonymClass              = "narrow"
+# --- Synonym class constants ---
 
-sourceType                      = "source_type"
-expertSynonymType               = "expert"
-laypersonSynonymType            = "layperson"
-abbreviationSynonymType         = "abbreviation"
-obsoleteSynonymType             = "obsolete"
-pluralFormSynonymType           = "plural"
-ukSpellingSynonymType           = "uk"
-allelicRequirementSynonymType   = "allelic"
+semanticClass           : str = "semantic_class"
+exactSynonymClass       : str = "exact"
+relatedSynonymClass     : str = "related"
+broadSynonymClass       : str = "broad"
+narrowSynonymClass      : str = "narrow"
 
-# In OWL Class Section, rather than in Axiom Section.
-directSynonymType               = "direct"
+# --- Synonym type constants ---
 
-owlSourceExactSynonym                   = "hasExactSynonym"
-owlSourceRelatedSynonym                 = "hasRelatedSynonym"
-owlSourceBoradSynonym                   = "hasBroadSynonym"
-owlSourceNarrowSynonym                  = "hasNarrowSynonym"
+sourceType                    : str = "source_type"
+expertSynonymType             : str = "expert"
+laypersonSynonymType          : str = "layperson"
+abbreviationSynonymType       : str = "abbreviation"
+obsoleteSynonymType           : str = "obsolete"
+pluralFormSynonymType         : str = "plural"
+ukSpellingSynonymType         : str = "uk"
+allelicRequirementSynonymType : str = "allelic"
 
-owlSourceSynonymTypeLayperson           = "layperson"
-owlSourceSynonymTypeAbbreviation        = "abbreviation"
-owlSourceSynonymTypeObsolete            = "obsolete_synonym"
-owlSourceSynonymTypePlural              = "plural_form"
-owlSourceSynonymTypeUKSpelling          = "uk_spelling"
-owlSourceSynonymTypeAllelic             = "allelic_requirement"
+# Synonym defined directly in the OWL Class section, rather than via an Axiom.
+directSynonymType             : str = "direct"
 
-# Common ontology namespaces used for RDF / OWL processing
+# --- OWL source property names (used for string matching) ---
+
+owlSourceExactSynonym    = "hasExactSynonym"
+owlSourceRelatedSynonym  = "hasRelatedSynonym"
+owlSourceBroadSynonym    = "hasBroadSynonym"
+owlSourceNarrowSynonym   = "hasNarrowSynonym"
+
+owlSourceSynonymTypeLayperson    = "layperson"
+owlSourceSynonymTypeAbbreviation = "abbreviation"
+owlSourceSynonymTypeObsolete     = "obsolete_synonym"
+owlSourceSynonymTypePlural       = "plural_form"
+owlSourceSynonymTypeUKSpelling   = "uk_spelling"
+owlSourceSynonymTypeAllelic      = "allelic_requirement"
+
+# --- Common ontology namespaces used for RDF / OWL processing ---
+
 OBO      = Namespace("http://purl.obolibrary.org/obo/")
 OBOINOWL = Namespace("http://www.geneontology.org/formats/oboInOwl#")
 OWL      = Namespace("http://www.w3.org/2002/07/owl#")
 RDF      = Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
+
+# Shared namespace bindings passed to every SPARQL query.
+_INIT_NS = {
+    "rdf"      : RDF,
+    "owl"      : OWL,
+    "obo"      : OBO,
+    "oboInOwl" : OBOINOWL,
+    "xsd"      : XSD,
+}
+
 
 def getSynonymTypeFromString(string: str = "") -> str:
     """
@@ -89,6 +107,7 @@ def getSynonymTypeFromString(string: str = "") -> str:
 
     return ret
 
+
 def getSynonymClassFromString(string: str = "") -> str:
     """
     Determine the synonym *class* (exact, related, broad, narrow)
@@ -106,7 +125,7 @@ def getSynonymClassFromString(string: str = "") -> str:
             ret = relatedSynonymClass
 
         # Broad synonym
-        elif owlSourceBoradSynonym in string:
+        elif owlSourceBroadSynonym in string:
             ret = broadSynonymClass
 
         # Narrow synonym
@@ -114,6 +133,7 @@ def getSynonymClassFromString(string: str = "") -> str:
             ret = narrowSynonymClass
 
     return ret
+
 
 def getConceptIDFromString(string: str = "") -> str:
     """
@@ -127,8 +147,7 @@ def getConceptIDFromString(string: str = "") -> str:
 
     if string is not None and "/" in string:
         # Extract the last path segment
-        parts = string.split("/")
-        ret = parts[len(parts) - 1]
+        ret = string.split("/")[-1]
 
         # Convert underscore-based IDs to colon-based IDs
         # (e.g. HP_0000118 -> HP:0000118)
@@ -137,12 +156,13 @@ def getConceptIDFromString(string: str = "") -> str:
 
     return ret
 
+
 def getSynonymsAndTypes(
-    hpo                 : Ontology = None, 
-    id_column           : str = "", 
-    attribute_column    : str = "", 
-    value_column        : str = "", 
-    additional_column   : str = ""
+    hpo              : Ontology = None,
+    id_column        : str = "",
+    attribute_column : str = "",
+    value_column     : str = "",
+    additional_column: str = ""
 ) -> pd.DataFrame:
     """
     Extract all synonyms for HPO concepts, including:
@@ -156,6 +176,7 @@ def getSynonymsAndTypes(
 
     if hpo is not None:
         l.log("Get synonyms and types of the Human Phenotype Ontology (HPO)...")
+
         # Convert Owlready2 ontology into an RDFLib graph
         g = hpo.world.as_rdflib_graph()
 
@@ -165,7 +186,7 @@ def getSynonymsAndTypes(
         # - Synonym class (exact, broad, narrow, related)
         # - Optional synonym type (e.g. layperson, abbreviation)
         query = """
-        SELECT ?hpoID ?synonym ?synclass ?syntype WHERE 
+        SELECT ?hpoID ?synonym ?synclass ?syntype WHERE
         {
             FILTER NOT EXISTS { ?hpoID owl:deprecated true }
             FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete "true" }
@@ -201,17 +222,8 @@ def getSynonymsAndTypes(
         """
 
         # Execute query with required namespace bindings
-        result = g.query(
-            query,
-            initNs={
-                "rdf": RDF,
-                "owl": OWL,
-                "obo": OBO,
-                "oboInOwl": OBOINOWL,
-                "xsd": XSD,
-            }
-        )
-        
+        result = g.query(query, initNs=_INIT_NS)
+
         # Accumulate query results into Python lists
         ids        = []
         attributes = []
@@ -224,11 +236,11 @@ def getSynonymsAndTypes(
             # Raw synonym literal
             attributes.append(row.synonym)
 
-            # Map RDF property to internal synonym class
-            a = {}
-            a[semanticClass] = getSynonymClassFromString(str(row.synclass))
-            a[sourceType]    = getSynonymTypeFromString(str(row.syntype))
-            additional.append(a)
+            # Map RDF property to internal synonym class and type
+            additional.append({
+                semanticClass : getSynonymClassFromString(str(row.synclass)),
+                sourceType    : getSynonymTypeFromString(str(row.syntype)),
+            })
 
         # Build a standardized DataFrame representation
         ret = pd.DataFrame({
@@ -238,16 +250,17 @@ def getSynonymsAndTypes(
             additional_column : additional
         })
 
-        l.log(f"{len(ret.index)} entities of the Human Phenotype Ontology (HPO) extracted.")
+        l.log(f"{len(ret)} entities of the Human Phenotype Ontology (HPO) extracted.")
 
     return ret
 
+
 def getComments(
-    hpo                 : Ontology = None, 
-    id_column           : str = "", 
-    attribute_column    : str = "", 
-    value_column        : str = "", 
-    additional_column   : str = ""
+    hpo              : Ontology = None,
+    id_column        : str = "",
+    attribute_column : str = "",
+    value_column     : str = "",
+    additional_column: str = ""
 ) -> pd.DataFrame:
     """
     Extract rdfs:comment annotations for HPO concepts.
@@ -279,21 +292,12 @@ def getComments(
                     ?axiom rdf:type owl:Axiom .
                     ?axiom owl:annotatedSource ?hpoID .
                     ?axiom owl:annotatedProperty rdfs:comment .
-                    ?axiom owl:annotatedAnnotatedTarget ?comment .
+                    ?axiom owl:annotatedTarget ?comment .
                 }
             }
         """
 
-        result = g.query(
-            query,
-            initNs={
-                "rdf": RDF,
-                "owl": OWL,
-                "obo": OBO,
-                "oboInOwl": OBOINOWL,
-                "xsd": XSD,
-            }
-        )
+        result = g.query(query, initNs=_INIT_NS)
 
         ids    = []
         values = []
@@ -302,24 +306,25 @@ def getComments(
             ids.append(getConceptIDFromString(str(row.hpoID)))
             values.append(row.comment)
 
-        # Normalize comments into standard DataFrame format
+        # Build a standardized DataFrame representation
         ret = pd.DataFrame({
-            id_column           : ids, 
-            attribute_column    : [commentClass] * len(ids), 
-            value_column        : values, 
-            additional_column   : [{} for _ in range(len(ids))]
+            id_column        : ids,
+            attribute_column : [commentClass] * len(ids),
+            value_column     : values,
+            additional_column: [{} for _ in range(len(ids))]
         })
 
-        l.log(f"{len(ret.index)} entities of the Human Phenotype Ontology (HPO) extracted.")
+        l.log(f"{len(ret)} entities of the Human Phenotype Ontology (HPO) extracted.")
 
     return ret
 
+
 def getDefinitions(
-    hpo                 : Ontology = None, 
-    id_column           : str = "", 
-    attribute_column    : str = "", 
-    value_column        : str = "", 
-    additional_column   : str = ""
+    hpo              : Ontology = None,
+    id_column        : str = "",
+    attribute_column : str = "",
+    value_column     : str = "",
+    additional_column: str = ""
 ) -> pd.DataFrame:
     """
     Extract textual definitions for HPO concepts
@@ -351,16 +356,7 @@ def getDefinitions(
             }
         """
 
-        result = g.query(
-            query,
-            initNs={
-                "rdf": RDF,
-                "owl": OWL,
-                "obo": OBO,
-                "oboInOwl": OBOINOWL,
-                "xsd": XSD,
-            }
-        )
+        result = g.query(query, initNs=_INIT_NS)
 
         ids    = []
         values = []
@@ -369,24 +365,25 @@ def getDefinitions(
             ids.append(getConceptIDFromString(str(row.hpoID)))
             values.append(row.definition)
 
-        # Normalize comments into standard DataFrame format
+        # Build a standardized DataFrame representation
         ret = pd.DataFrame({
-            id_column           : ids, 
-            attribute_column    : [definitionClass] * len(ids), 
-            value_column        : values, 
-            additional_column   : [{} for _ in range(len(ids))]
+            id_column        : ids,
+            attribute_column : [definitionClass] * len(ids),
+            value_column     : values,
+            additional_column: [{} for _ in range(len(ids))]
         })
 
-        l.log(f"{len(ret.index)} entities of the Human Phenotype Ontology (HPO) extracted.")
+        l.log(f"{len(ret)} entities of the Human Phenotype Ontology (HPO) extracted.")
 
     return ret
 
+
 def getLabels(
-    hpo                 : Ontology = None, 
-    id_column           : str = "", 
-    attribute_column    : str = "", 
-    value_column        : str = "", 
-    additional_column   : str = ""
+    hpo              : Ontology = None,
+    id_column        : str = "",
+    attribute_column : str = "",
+    value_column     : str = "",
+    additional_column: str = ""
 ) -> pd.DataFrame:
     """
     Extract rdfs:label annotations for HPO concepts.
@@ -408,16 +405,7 @@ def getLabels(
             }
         """
 
-        result = g.query(
-            query,
-            initNs={
-                "rdf": RDF,
-                "owl": OWL,
-                "obo": OBO,
-                "oboInOwl": OBOINOWL,
-                "xsd": XSD,
-            }
-        )
+        result = g.query(query, initNs=_INIT_NS)
 
         ids    = []
         values = []
@@ -426,24 +414,25 @@ def getLabels(
             ids.append(getConceptIDFromString(str(row.hpoID)))
             values.append(row.label)
 
-        # Normalize comments into standard DataFrame format
+        # Build a standardized DataFrame representation
         ret = pd.DataFrame({
-            id_column           : ids, 
-            attribute_column    : [labelClass] * len(ids), 
-            value_column        : values, 
-            additional_column   : [{} for _ in range(len(ids))]
+            id_column        : ids,
+            attribute_column : [labelClass] * len(ids),
+            value_column     : values,
+            additional_column: [{} for _ in range(len(ids))]
         })
 
-        l.log(f"{len(ret.index)} entities of the Human Phenotype Ontology (HPO) extracted.")
+        l.log(f"{len(ret)} entities of the Human Phenotype Ontology (HPO) extracted.")
 
     return ret
 
+
 def getChildren(
-    hpo                 : Ontology = None, 
-    id_column           : str = "", 
-    attribute_column    : str = "", 
-    value_column        : str = "", 
-    additional_column   : str = ""
+    hpo              : Ontology = None,
+    id_column        : str = "",
+    attribute_column : str = "",
+    value_column     : str = "",
+    additional_column: str = ""
 ) -> pd.DataFrame:
     """
     Extract parent–child (subClassOf) relationships from the ontology.
@@ -471,16 +460,7 @@ def getChildren(
             }
         """
 
-        result = g.query(
-            query,
-            initNs={
-                "rdf": RDF,
-                "owl": OWL,
-                "obo": OBO,
-                "oboInOwl": OBOINOWL,
-                "xsd": XSD,
-            }
-        )
+        result = g.query(query, initNs=_INIT_NS)
 
         ids    = []
         values = []
@@ -489,24 +469,25 @@ def getChildren(
             ids.append(getConceptIDFromString(str(row.parent)))
             values.append(getConceptIDFromString(str(row.child)))
 
-        # Normalize comments into standard DataFrame format
+        # Build a standardized DataFrame representation
         ret = pd.DataFrame({
-            id_column           : ids, 
-            attribute_column    : [childrenClass] * len(ids), 
-            value_column        : values, 
-            additional_column   : [{} for _ in range(len(ids))]
+            id_column        : ids,
+            attribute_column : [childrenClass] * len(ids),
+            value_column     : values,
+            additional_column: [{} for _ in range(len(ids))]
         })
 
-        l.log(f"{len(ret.index)} entities of the Human Phenotype Ontology (HPO) extracted.")
+        l.log(f"{len(ret)} entities of the Human Phenotype Ontology (HPO) extracted.")
 
     return ret
 
+
 def getReferences(
-    hpo                 : Ontology = None, 
-    id_column           : str = "", 
-    attribute_column    : str = "", 
-    value_column        : str = "", 
-    additional_column   : str = ""
+    hpo              : Ontology = None,
+    id_column        : str = "",
+    attribute_column : str = "",
+    value_column     : str = "",
+    additional_column: str = ""
 ) -> pd.DataFrame:
     """
     Extract database cross-references (DbXrefs) for HPO concepts.
@@ -540,32 +521,23 @@ def getReferences(
             }
         """
 
-        result = g.query(
-            query,
-            initNs={
-                "rdf": RDF,
-                "owl": OWL,
-                "obo": OBO,
-                "oboInOwl": OBOINOWL,
-                "xsd": XSD
-            }
-        )
+        result = g.query(query, initNs=_INIT_NS)
 
-        ids     = []
-        values  = []
+        ids    = []
+        values = []
 
         for row in result:
             ids.append(getConceptIDFromString(str(row.hpoID)))
             values.append(row.xref)
 
-        # Normalize references into standard DataFrame format
+        # Build a standardized DataFrame representation
         ret = pd.DataFrame({
-            id_column         : ids,
-            attribute_column  : [referenceClass] * len(ids),
-            value_column      : values,
-            additional_column : [{} for _ in range(len(ids))]
+            id_column        : ids,
+            attribute_column : [referenceClass] * len(ids),
+            value_column     : values,
+            additional_column: [{} for _ in range(len(ids))]
         })
 
-        l.log(f"{len(ret.index)} entities of the Human Phenotype Ontology (HPO) extracted.")
+        l.log(f"{len(ret)} entities of the Human Phenotype Ontology (HPO) extracted.")
 
     return ret

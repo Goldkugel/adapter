@@ -1,17 +1,21 @@
-import sys
+"""
+Tests for HPOAdapter and its configuration loading.
 
-# Prevent Python from generating .pyc files (compiled bytecode files)
-sys.dont_write_bytecode = True
+Contains two test classes:
+- TestHPOAdapterInit: unit tests for configuration loading via __init__.
+- TestHPOAdapterLoad: integration tests against the real hp.owl file,
+  verifying the shape and contents of the loaded EAV DataFrame.
+"""
 
-import os
-
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from __future__ import annotations
 
 import pytest
-import pandas as pd
-from pathlib import Path
 
-from .HPOAdapter import HPOAdapter
+from .HPOAdapter        import HPOAdapter
+from ..BaseAdapterUtils import (
+    labelClass, definitionClass, commentClass,
+    referenceClass, childrenClass, synonymClass,
+)
 
 
 @pytest.fixture
@@ -41,17 +45,13 @@ def loaded_adapter():
     return a, row_count
 
 
-ALL_EXTRACTOR_NAMES = [
-    "getLabels",
-    "getDefinitions",
-    "getComments",
-    "getChildren",
-    "getReferences",
-    "getSynonymsAndTypes",
-]
-
-
 class TestHPOAdapterInit:
+    """
+    Unit tests for HPOAdapter.__init__.
+
+    Verifies that configuration values are correctly loaded from the
+    YAML file and that defaults are applied for fields not explicitly set.
+    """
 
     def test_init_loads_input_settings_from_real_config(self, adapter):
         assert adapter.config.input_folder == "./data/input/hpo/"
@@ -106,7 +106,8 @@ class TestHPOAdapterLoad:
         adapter, _ = loaded_adapter
         found_attributes = set(adapter.data[adapter.config.attribute_column])
         expected_attributes = {
-            "label", "definition", "comment", "child", "reference", "synonym"
+            labelClass, definitionClass, commentClass,
+            referenceClass, childrenClass, synonymClass,
         }
         assert expected_attributes.issubset(found_attributes)
 
@@ -120,6 +121,7 @@ class TestHPOAdapterLoad:
         adapter, _ = loaded_adapter
         id_column = adapter.data[adapter.config.id_column]
         assert not id_column.str.contains("#", na=False).any()
+
 
 if __name__ == "__main__":
     import sys

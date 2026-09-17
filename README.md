@@ -6,6 +6,7 @@ The project provides a common adapter framework together with ontology-specific 
 
 - Human Phenotype Ontology (HPO)
 - SNOMED CT (SCT)
+- Unified Medical Language System (UMLS)
 
 The generated EAV tables can be used for downstream analytics, knowledge graph construction, database import, or data integration workflows.
 
@@ -32,19 +33,26 @@ adapter/
 ├── data/
 │   ├── input/
 │   │   ├── hpo/
-│   │   └── sct/
+│   │   ├── sct/
+│   │   └── umls/
 │   ├── output/
 │   └── logs/
 ├── src/
 │   ├── BaseAdapter.py
-│   ├── BaseAdapterModel.py
+│   ├── BaseAdapterConfig.py
 │   ├── BaseAdapterUtils.py
 │   ├── hpo/
 │   │   ├── HPOAdapter.py
-│   │   └── HPOAdapterUtils.py
-│   └── sct/
-│       ├── SCTAdapter.py
-│       └── SCTAdapterUtils.py
+│   │   ├── HPOAdapterUtils.py
+│   │   └── HPOAdapterTest.py
+│   ├── sct/
+│   │   ├── SCTAdapter.py
+│   │   ├── SCTAdapterUtils.py
+│   │   └── SCTAdapterTest.py
+│   └── umls/
+│       ├── UMLSAdapter.py
+│       ├── UMLSAdapterUtils.py
+│       └── UMLSAdapterTest.py
 └── pyproject.toml
 ```
 
@@ -57,6 +65,7 @@ adapter/
 - pydantic
 - PyYAML
 - owlready2 (for HPO support)
+- rdflib (for HPO support)
 - logger package
 
 ---
@@ -76,7 +85,7 @@ Install the package:
 pip install .
 ```
 
-or in editable mode:
+or in editable mode for development:
 
 ```bash
 pip install -e .
@@ -111,7 +120,7 @@ Each ontology adapter reads its own configuration section while sharing the comm
 
 ### Human Phenotype Ontology (HPO)
 
-The HPO adapter loads ontology data using **owlready2** and extracts information including:
+The HPO adapter loads ontology data using **owlready2** and **rdflib** and extracts information including:
 
 - identifiers
 - labels
@@ -127,23 +136,27 @@ The extracted information is converted into the common EAV representation.
 
 ### SNOMED CT
 
-The SNOMED CT adapter processes RF2 release files and extracts terminology into the same EAV format used by the HPO adapter.
+The SNOMED CT adapter processes RF2 release files and extracts terminology into the same EAV format used by the HPO adapter. Supported RF2 file types include Concept, Description, TextDefinition, Relationship, and SimpleMap reference set files.
+
+---
+
+### UMLS
+
+The UMLS adapter processes RRF release files (MRCONSO, MRDEF) and extracts concepts, synonyms, definitions, and source references into the same EAV format used by the other adapters.
 
 ---
 
 ## Output Format
 
-All adapters produce a normalized Entity–Attribute–Value table.
+All adapters produce a normalized Entity–Attribute–Value table with the following columns:
 
-Example:
-
-| entity | attribute | value |
-|---------|-----------|-------|
+| id | attribute | value |
+|----|-----------|-------|
 | HP:0000118 | label | Phenotypic abnormality |
 | HP:0000118 | definition | A phenotypic abnormality. |
 | HP:0000118 | synonym | Clinical abnormality |
 
-This common representation enables downstream processing independent of the original ontology format.
+This common representation enables downstream processing independent of the original ontology format. The EAV attribute names are defined as constants in `BaseAdapterUtils.py` (e.g. `labelClass`, `synonymClass`) and should be reused by any new adapter.
 
 ---
 
@@ -168,10 +181,10 @@ The resulting CSV is written to the configured output directory.
 
 To support another ontology:
 
-1. Subclass `BaseAdapter`.
-2. Implement the required loading logic.
-3. Convert ontology information into EAV records.
-4. Add a configuration section to `config.yaml`.
+1. Subclass `BaseAdapter` and implement the `load()` method to populate `self.data` with EAV rows.
+2. Use the shared EAV attribute-name constants from `BaseAdapterUtils` (e.g. `labelClass`, `synonymClass`) to keep attribute names consistent across adapters.
+3. Add a configuration section for the new adapter to `config/config.yaml`, following the same structure as the existing adapter sections.
+4. Export the new adapter class from `src/__init__.py`.
 
 This design keeps ontology-specific parsing separate from the shared export and configuration logic.
 
@@ -197,7 +210,13 @@ Install in editable mode:
 pip install -e .
 ```
 
-Run the adapter directly during development and place ontology input files inside the appropriate directory under `data/input/`.
+Run the test suite with pytest:
+
+```bash
+pytest src/
+```
+
+Place ontology input files inside the appropriate directory under `data/input/` before running an adapter.
 
 ---
 

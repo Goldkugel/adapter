@@ -1,86 +1,26 @@
-import sys
+"""
+Abstract base class for all ontology adapters.
 
-# Prevent Python from generating .pyc bytecode files
-sys.dont_write_bytecode = True
+Defines the shared initialisation (loading and validating a YAML config),
+the abstract load() interface that every concrete adapter must implement,
+and the common to_csv() method for writing EAV data to disk.
+"""
+
+from __future__ import annotations
 
 from abc                import ABC, abstractmethod
-from .BaseAdapterConfig import *
-from logger             import Logger
-from .BaseAdapterUtils  import *
+from .BaseAdapterConfig import BaseAdapterConfig
+from .BaseAdapterUtils  import isFolder, createFolder, writeHugeCSV
 import pandas           as pd
 import yaml
 import os
 
 # Key under which adapter settings are expected to live in the YAML config file.
-configuration_section: str  = "adapter"
+configuration_section: str = "adapter"
 
 # Default path to the config file, used if no path is explicitly passed in.
-standard_directory: str     = "./config/config.yaml"
+standard_directory: str    = "./config/config.yaml"
 
-def isFile(path: str = "") -> bool:
-    """
-    Check whether the given path refers to an existing file.
-
-    Parameters
-    ----------
-    path : str, optional
-        Path to check.
-
-    Returns
-    -------
-    bool
-        True if the path exists and is a file, False otherwise.
-    """
-    return os.path.isfile(path)
-
-
-def isFolder(path: str = "") -> bool:
-    """
-    Check whether the given path refers to an existing directory.
-
-    Parameters
-    ----------
-    path : str, optional
-        Path to check.
-
-    Returns
-    -------
-    bool
-        True if the path exists and is a directory, False otherwise.
-    """
-    return os.path.isdir(path)
-
-
-def createFolder(path: str = "") -> bool:
-    """
-    Create a directory if it does not already exist.
-
-    A log message is written indicating whether the directory was created
-    or already existed.
-
-    Parameters
-    ----------
-    path : str, optional
-        Path of the directory to create.
-
-    Returns
-    -------
-    bool
-        True if the directory was created, False if it already existed.
-    """
-    ret = False
-
-    l = Logger()
-    base_name = os.path.basename(path)
-
-    if not isFolder(path):
-        os.makedirs(path)
-        l.log(f"Folder '{base_name}' created.")
-        ret = True
-    else:
-        l.log(f"Folder '{base_name}' already exists.")
-
-    return ret
 
 class BaseAdapter(ABC):
     """
@@ -94,34 +34,38 @@ class BaseAdapter(ABC):
     source format.
     """
 
-    # Validated configuration object (input path, output folder/file
-    # name, delimiter, encoding, etc.)
-    config: BaseAdapterConfig = None
-
-    # The DataFrame containing the loaded data in EAV format (entity_id,
-    # attribute, value), with an additional column containing extra
-    # information as a JSON object where needed.
-    data: pd.DataFrame = None
-
     def __init__(self, config: str = standard_directory, adapter_name: str = ""):
         """
         Load and validate adapter configuration from a YAML file.
+
+        Parameters
+        ----------
+        config : str, optional
+            Path to the YAML configuration file.
+        adapter_name : str, optional
+            Key within the "adapter" section of the config file to load.
+            If empty, the "adapter" section itself is used directly.
         """
+        # Initialise instance attributes explicitly so each instance has
+        # its own config and data, rather than sharing class-level defaults.
+        self.config: BaseAdapterConfig = None
+        self.data: pd.DataFrame        = None
+
         # Open and parse the YAML config file.
         with open(config, "r") as f:
-            data = yaml.safe_load(f)
+            raw = yaml.safe_load(f)
 
         # Extract the "adapter" section and validate/coerce it into a
         # BaseAdapterConfig model (raises if required fields are
         # missing/invalid, or if unexpected keys are present, per the
         # model's configuration).
-        if len(adapter_name) > 0:
+        if adapter_name:
             self.config = BaseAdapterConfig.model_validate(
-                data[configuration_section][adapter_name]
+                raw[configuration_section][adapter_name]
             )
         else:
             self.config = BaseAdapterConfig.model_validate(
-                data[configuration_section]
+                raw[configuration_section]
             )
 
     @abstractmethod
@@ -132,15 +76,29 @@ class BaseAdapter(ABC):
 
         Concrete subclasses must implement this to populate `self.data`
         with the parsed ontology content in EAV format.
+
+        Returns
+        -------
+        int
+            Number of EAV rows loaded into self.data.
         """
+        return 0
 
     def to_csv(self) -> int:
-        # Write self.data to disk at the configured output location,
-        # using the configured delimiter and encoding. Shared across
-        # all adapters, since the write logic itself doesn't depend on
-        # which ontology was loaded.
+        """
+        Write self.data to disk at the configured output location.
 
-        # Creating folder if it does not exist.
+        Uses the configured delimiter and encoding. The output folder is
+        created automatically if it does not already exist. Shared across
+        all adapters, since the write logic itself doesn't depend on which
+        ontology was loaded.
+
+        Returns
+        -------
+        int
+            Number of rows written to the CSV file.
+        """
+        # Create the output folder if it does not exist yet.
         if not isFolder(self.config.output_folder):
             createFolder(self.config.output_folder)
 

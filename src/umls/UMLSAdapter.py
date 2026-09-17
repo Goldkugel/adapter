@@ -1,18 +1,23 @@
-import sys
+"""
+Concrete adapter for the Unified Medical Language System (UMLS).
 
-# Prevent Python from generating .pyc files (compiled bytecode files)
-sys.dont_write_bytecode = True
+Reads the configured UMLS RRF files (MRCONSO, MRDEF) via the appropriate
+parsers and transformers from UMLSAdapterUtils, concatenates the resulting
+EAV tables, and stores the result in self.data.
+"""
+
+from __future__ import annotations
 
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-
-from ..BaseAdapter      import *
+from ..BaseAdapter      import BaseAdapter, standard_directory
+from ..BaseAdapterUtils import isFile
+from .UMLSAdapterUtils  import readRRFFileByPath
 from logger             import Logger
 import pandas           as pd
-from .UMLSAdapterUtils  import *
 
-config_keyword = "umls"
+config_keyword: str = "umls"
+
 
 class UMLSAdapter(BaseAdapter):
     """
@@ -34,12 +39,12 @@ class UMLSAdapter(BaseAdapter):
         Returns
         -------
         int
-            Number of EAV rows loaded.
+            Number of EAV rows loaded into self.data.
         """
         ret = 0
         l = Logger()
 
-        if len(self.config.input_files) > 0:
+        if self.config.input_files:
 
             output_file = os.path.join(
                 self.config.output_folder,
@@ -60,7 +65,7 @@ class UMLSAdapter(BaseAdapter):
                         filename,
                     )
 
-                    frame = readRFFFileByPath(
+                    frame = readRRFFileByPath(
                         path,
                         self.config.id_column,
                         self.config.attribute_column,
@@ -70,66 +75,62 @@ class UMLSAdapter(BaseAdapter):
                         self.config.separator
                     )
 
-                    if frame is not None and len(frame.index) > 0:
+                    if frame is not None and len(frame) > 0:
                         frames.append(frame)
 
-                l.log(f"Loading completed.")
+                l.log("Loading completed.")
 
-                if len(frames) > 0:
-
+                if frames:
                     l.log("Merging data...")
                     self.data = pd.concat(
                         frames,
-                        ignore_index = True,
+                        ignore_index=True,
                     )
-
-                    ret = len(self.data.index)
+                    ret = len(self.data)
                     l.log(f"Found {ret} entities/rows in total.")
 
-                    #
-                    # Remove rows without an identifier.
-                    #
+                    # Remove rows without an identifier — these can appear
+                    # when a CUI fails to resolve or a mapping row references
+                    # a retired concept.
                     l.log("Removing rows without an ID...")
                     self.data = self.data[
                         (self.data[self.config.id_column].notna()) &
                         (self.data[self.config.id_column] != "")
                     ]
                     l.log("Removing rows without an ID completed.")
-
-                    ret = len(self.data.index)
+                    ret = len(self.data)
                     l.log(f"Reduced to {ret} entities/rows in total.")
 
-                    #
-                    # Remove rows without values.
-                    #
+                    # Remove rows without a value — empty strings or map
+                    # targets add no information and can cause issues
+                    # downstream (e.g. empty cells in the EAV CSV).
                     l.log("Removing rows without values...")
                     self.data = self.data[
                         (self.data[self.config.value_column].notna()) &
                         (self.data[self.config.value_column] != "")
                     ]
                     l.log("Removing rows without values completed.")
-
-                    ret = len(self.data.index)
+                    ret = len(self.data)
                     l.log(f"Reduced to {ret} entities/rows in total.")
 
-                    #
-                    # Remove duplicate EAV entries.
-                    #
+                    # Remove exact duplicates across (id, attribute, value) —
+                    # the same term can appear in multiple source vocabularies,
+                    # so deduplication ensures clean downstream output.
                     l.log("Removing duplicate rows...")
                     self.data = self.data.drop_duplicates(subset=[
-                        self.config.id_column, 
-                        self.config.attribute_column, 
-                        self.config.value_column]
-                    ).reset_index(drop = True)
+                        self.config.id_column,
+                        self.config.attribute_column,
+                        self.config.value_column
+                    ]).reset_index(drop=True)
                     l.log("Removing duplicate rows completed.")
-
-                    ret = len(self.data.index)
+                    ret = len(self.data)
                     l.log(f"Reduced to {ret} entities/rows in total.")
 
                 else:
                     l.log("No data found. Are the configured files correct?")
 
                 l.log(f"Loading UMLS from {len(self.config.input_files)} files completed.")
+
         else:
             l.log("No input files found. Were they set in the configuration file?")
 
@@ -137,6 +138,7 @@ class UMLSAdapter(BaseAdapter):
 
 
 if __name__ == "__main__":
+    # Quick manual test: load UMLS and write the result to CSV.
     a = UMLSAdapter()
     a.load()
     a.to_csv()
