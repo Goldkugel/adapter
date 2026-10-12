@@ -286,9 +286,9 @@ def getChildren(
     isA    = active[active[rf2SourceTypeId] == isARelationshipTypeId]
 
     return pd.DataFrame({
-        id_column        : isA[rf2SourceSourceId].values,
+        id_column        : isA[rf2SourceDestinationId].values,
         attribute_column : [childrenClass] * len(isA),
-        value_column     : isA[rf2SourceDestinationId].values,
+        value_column     : isA[rf2SourceSourceId].values,
         additional_column: [{}] * len(isA),
     })
 

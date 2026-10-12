@@ -176,6 +176,18 @@ class SCTAdapter(BaseAdapter):
                         self.config.value_column
                     ]).reset_index(drop=True)
                     l.log("Removing duplicate rows completed.")
+
+                    l.log("Adding prefix...")
+                    # Add SNOMEDCT_US: prefix to the id column
+                    self.data[self.config.id_column] = "SNOMEDCT_US:" + self.data[self.config.id_column].astype(str)
+
+                    # Add SNOMEDCT_US: prefix to the value column where attribute is "child"
+                    child_mask = self.data[self.config.attribute_column] == "child"
+                    self.data.loc[child_mask, self.config.value_column] = (
+                        "SNOMEDCT_US:" + self.data.loc[child_mask, self.config.value_column].astype(str)
+                    )
+                    l.log("Adding prefix completed.")
+
                     ret = len(self.data)
                     l.log(f"Reduced to {ret} entities/rows in total.")
                 else:
