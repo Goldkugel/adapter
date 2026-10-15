@@ -86,7 +86,7 @@ simpleMapColumns = [
 conceptPrefix        : str = "sct2_Concept_"
 descriptionPrefix    : str = "sct2_Description_"
 textDefinitionPrefix : str = "sct2_TextDefinition_"
-relationshipPrefix   : str = "sct2_Relationship_"
+relationshipPrefix   : str = "sct2_StatedRelationship_"
 simpleMapPrefix      : str = "der2_sRefset_SimpleMapFull"
 
 # --- SNOMED CT description type IDs ---
