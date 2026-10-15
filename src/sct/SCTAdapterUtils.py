@@ -130,6 +130,7 @@ def _readRF2File(
     """
     l = Logger()
     l.printFileProcessingStart(path)
+    
     ret = pd.read_csv(
         path,
         sep             = separator,
@@ -138,6 +139,15 @@ def _readRF2File(
         encoding        = encoding,
         usecols         = columns,
     )
+
+    # Keep only the most recent version of each row.
+    # Full release files contain one row per effectiveTime per entity;
+    # deduplicating here ensures superseded rows never reach the
+    # transformer functions regardless of their active flag.
+    if rf2SourceEffectiveTime in ret.columns and rf2SourceId in ret.columns:
+        ret = ret.sort_values(rf2SourceEffectiveTime, ascending=False) \
+            .drop_duplicates(subset=[rf2SourceId], keep="first")
+
     l.printFileProcessingEnd(path)
     l.log(f"{len(ret)} entities of SNOMED CT extracted.")
     return ret
