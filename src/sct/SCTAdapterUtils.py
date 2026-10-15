@@ -64,7 +64,7 @@ descriptionColumns = [
 textDefinitionColumns = descriptionColumns
 
 relationshipColumns = [
-    rf2SourceId,
+    rf2SourceId,           
     rf2SourceEffectiveTime,
     rf2SourceActive,            # Filter: only include if active
     rf2SourceSourceId,          # ID
@@ -88,7 +88,7 @@ simpleMapColumns = [
 conceptPrefix        : str = "sct2_Concept_"
 descriptionPrefix    : str = "sct2_Description_"
 textDefinitionPrefix : str = "sct2_TextDefinition_"
-relationshipPrefix   : str = "sct2_StatedRelationship_"
+relationshipPrefix   : str = "sct2_Relationship_"
 simpleMapPrefix      : str = "der2_sRefset_SimpleMapFull"
 
 # --- SNOMED CT description type IDs ---
@@ -294,20 +294,9 @@ def getChildren(
     becomes the id, destinationId (the parent) becomes the value, and
     attribute is fixed to childrenClass.
     """
-    print(f"Input rows: {len(data)}")
-    print(data.head(3))
-    
-    latest = data.sort_values(rf2SourceEffectiveTime, ascending=False) \
-                 .drop_duplicates(subset=[rf2SourceId], keep="first")
-    print(f"After dedup: {len(latest)}")
-    
-    active = _activeOnly(latest)
-    print(f"After active filter: {len(active)}")
-    
-    isA = active[active[rf2SourceTypeId] == isARelationshipTypeId]
-    print(f"After IS-A filter: {len(isA)}")
-    print(isA.head(3))
-    
+    active = _activeOnly(data)
+    isA    = active[active[rf2SourceTypeId] == isARelationshipTypeId]
+
     return pd.DataFrame({
         id_column        : isA[rf2SourceDestinationId].values,
         attribute_column : [childrenClass] * len(isA),
