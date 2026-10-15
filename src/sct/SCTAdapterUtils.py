@@ -64,6 +64,8 @@ descriptionColumns = [
 textDefinitionColumns = descriptionColumns
 
 relationshipColumns = [
+    rf2SourceId,
+    rf2SourceEffectiveTime,
     rf2SourceActive,            # Filter: only include if active
     rf2SourceSourceId,          # ID
     rf2SourceDestinationId,     # Value, attribute is always "child"
@@ -130,7 +132,7 @@ def _readRF2File(
     """
     l = Logger()
     l.printFileProcessingStart(path)
-    
+
     ret = pd.read_csv(
         path,
         sep             = separator,
