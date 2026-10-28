@@ -290,9 +290,10 @@ def getChildren(
     """
     Convert a raw Relationship DataFrame into EAV rows.
 
-    Only active IS-A relationships are kept. sourceId (the child)
-    becomes the id, destinationId (the parent) becomes the value, and
-    attribute is fixed to childrenClass.
+    Only active IS-A relationships are kept. destinationId (the parent)
+    becomes the id, sourceId (the child) becomes the value, and
+    attribute is fixed to childrenClass. Each row therefore reads
+    "parent -> child", matching the HPO adapter.
     """
     active = _activeOnly(data)
     isA    = active[active[rf2SourceTypeId] == isARelationshipTypeId]
