@@ -11,6 +11,7 @@ Contains three test classes:
 
 from __future__ import annotations
 
+import time
 import pytest
 
 from unittest.mock      import MagicMock
@@ -20,6 +21,7 @@ from .HPOAdapterUtils   import (
     getSynonymsAndTypes, getReferences,
     semanticClass, sourceType, exactSynonymClass, relatedSynonymClass,
     laypersonSynonymType, directSynonymType,
+    abbreviationSynonymType, pluralFormSynonymType,
 )
 from ..BaseAdapterUtils import (
     labelClass, definitionClass, commentClass,
@@ -146,7 +148,7 @@ obo:HP_1 a owl:Class ;
     rdfs:label "Concept one" ;
     obo:IAO_0000115 "A definition." ;
     oboInOwl:hasDbXref "UMLS:C1" ;
-    oboInOwl:hasExactSynonym "plain", "lay" ;
+    oboInOwl:hasExactSynonym "plain", "lay", "ABC" ;
     oboInOwl:hasRelatedSynonym "sourced" .
 
 [] a owl:Axiom ;
@@ -155,6 +157,13 @@ obo:HP_1 a owl:Class ;
     owl:annotatedTarget "lay" ;
     oboInOwl:hasSynonymType <http://purl.obolibrary.org/obo/hp#layperson> ;
     oboInOwl:hasDbXref "ORCID:1" .
+
+[] a owl:Axiom ;
+    owl:annotatedSource obo:HP_1 ;
+    owl:annotatedProperty oboInOwl:hasExactSynonym ;
+    owl:annotatedTarget "ABC" ;
+    oboInOwl:hasSynonymType <http://purl.obolibrary.org/obo/hp#abbreviation>,
+                            <http://purl.obolibrary.org/obo/hp#plural_form> .
 
 [] a owl:Axiom ;
     owl:annotatedSource obo:HP_1 ;
@@ -171,6 +180,12 @@ obo:HP_1 a owl:Class ;
 obo:HP_2 a owl:Class ;
     owl:deprecated true ;
     oboInOwl:hasExactSynonym "deprecated synonym" .
+
+[] a owl:Axiom ;
+    owl:annotatedSource obo:HP_2 ;
+    owl:annotatedProperty oboInOwl:hasExactSynonym ;
+    owl:annotatedTarget "deprecated synonym" ;
+    oboInOwl:hasSynonymType <http://purl.obolibrary.org/obo/hp#layperson> .
 
 obo:HP_3 a owl:Class ;
     oboInOwl:is_obsolete "true"^^xsd:boolean ;
@@ -202,10 +217,45 @@ class TestHPOAdapterUtilsQueries:
             for r in frame.itertuples()
         )
         assert rows == [
+            ("HP:1", "ABC",     exactSynonymClass,   abbreviationSynonymType),
+            ("HP:1", "ABC",     exactSynonymClass,   pluralFormSynonymType),
             ("HP:1", "lay",     exactSynonymClass,   laypersonSynonymType),
             ("HP:1", "plain",   exactSynonymClass,   directSynonymType),
             ("HP:1", "sourced", relatedSynonymClass, directSynonymType),
         ]
+
+    def test_synonym_extraction_scales_linearly(self):
+        # Regression test: joining synonyms with their axioms inside one
+        # SPARQL query took time proportional to synonyms x axioms (about
+        # two minutes for this graph, days for the full HPO).
+        n = 300
+        ttl = [SAMPLE_TTL.split("obo:HP_1", 1)[0]]
+        for i in range(n):
+            ttl.append(f"""
+obo:HP_{i + 10} a owl:Class ;
+    oboInOwl:hasExactSynonym "lay {i}" ;
+    oboInOwl:hasRelatedSynonym "plain {i}" .
+[] a owl:Axiom ;
+    owl:annotatedSource obo:HP_{i + 10} ;
+    owl:annotatedProperty oboInOwl:hasExactSynonym ;
+    owl:annotatedTarget "lay {i}" ;
+    oboInOwl:hasSynonymType <http://purl.obolibrary.org/obo/hp#layperson> .
+[] a owl:Axiom ;
+    owl:annotatedSource obo:HP_{i + 10} ;
+    owl:annotatedProperty oboInOwl:hasRelatedSynonym ;
+    owl:annotatedTarget "plain {i}" ;
+    oboInOwl:hasDbXref "PMID:{i}" .
+""")
+        hpo = MagicMock()
+        hpo.world.as_rdflib_graph.return_value = Graph().parse(data="".join(ttl), format="turtle")
+
+        start = time.perf_counter()
+        frame = getSynonymsAndTypes(hpo, "id", "attribute", "value", "additional")
+        elapsed = time.perf_counter() - start
+
+        assert len(frame) == 2 * n
+        assert sum(a[sourceType] == laypersonSynonymType for a in frame["additional"]) == n
+        assert elapsed < 10
 
     def test_references_exclude_xrefs_on_axioms(self, sample_hpo):
         frame = getReferences(sample_hpo, "id", "attribute", "value", "additional")

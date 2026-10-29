@@ -181,63 +181,74 @@ def getSynonymsAndTypes(
         # Convert Owlready2 ontology into an RDFLib graph
         g = hpo.world.as_rdflib_graph()
 
-        # SPARQL query retrieves:
-        # - Concept ID
-        # - Synonym text
-        # - Synonym class (exact, broad, narrow, related)
-        # - Optional synonym type (e.g. layperson, abbreviation)
-        #
         # In the RDF serialisation, every synonym is stored as a direct
         # triple; synonyms with extra annotations additionally have an
-        # owl:Axiom that repeats source/property/target. Matching the
-        # direct triple and only OPTIONALly joining the axiom's synonym
-        # type yields each synonym once (per type), instead of once as
-        # "direct" and once more via the axiom.
-        query = """
-        SELECT DISTINCT ?hpoID ?synonym ?synclass ?syntype WHERE
+        # owl:Axiom that repeats source/property/target. The synonyms
+        # come from the direct triples (so each is found once, not once
+        # more via its axiom), and their types from the axioms.
+        #
+        # Both are fetched with separate queries and joined in Python.
+        # Joining them inside SPARQL (an OPTIONAL axiom pattern) makes
+        # rdflib re-evaluate the axiom pattern for every synonym and
+        # scan all axioms each time, which takes days on the full HPO.
+
+        # Direct synonyms of active (not deprecated or obsolete) concepts.
+        synonymQuery = """
+        SELECT DISTINCT ?hpoID ?synonym ?synclass WHERE
         {
+            VALUES ?synclass {
+                oboInOwl:hasExactSynonym
+                oboInOwl:hasBroadSynonym
+                oboInOwl:hasNarrowSynonym
+                oboInOwl:hasRelatedSynonym
+            }
+            ?hpoID ?synclass ?synonym .
             FILTER NOT EXISTS { ?hpoID owl:deprecated true }
             FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete ?obsolete . FILTER(str(?obsolete) = "true") }
-            ?hpoID ?synclass ?synonym .
-            FILTER(?synclass IN (
-                oboInOwl:hasExactSynonym,
-                oboInOwl:hasBroadSynonym,
-                oboInOwl:hasNarrowSynonym,
-                oboInOwl:hasRelatedSynonym
-            ))
-            # Optional synonym type (e.g. layperson, obsolete)
-            OPTIONAL {
-                ?axiom rdf:type owl:Axiom .
-                ?axiom owl:annotatedSource ?hpoID .
-                ?axiom owl:annotatedProperty ?synclass .
-                ?axiom owl:annotatedTarget ?synonym .
-                ?axiom oboInOwl:hasSynonymType ?syntype .
-            }
         }
         """
 
-        # Execute query with required namespace bindings
-        result = g.query(query, initNs=_INIT_NS)
+        # Synonym types (e.g. layperson, abbreviation) from the axioms.
+        # Starting from hasSynonymType keeps this to the typed axioms.
+        typeQuery = """
+        SELECT DISTINCT ?hpoID ?synonym ?synclass ?syntype WHERE
+        {
+            ?axiom oboInOwl:hasSynonymType ?syntype .
+            ?axiom owl:annotatedSource ?hpoID .
+            ?axiom owl:annotatedProperty ?synclass .
+            ?axiom owl:annotatedTarget ?synonym .
+        }
+        """
+
+        # Collect the types of each (concept, class, synonym) triple.
+        # A synonym can have more than one type.
+        types = {}
+        for row in g.query(typeQuery, initNs=_INIT_NS):
+            key = (str(row.hpoID), str(row.synclass), str(row.synonym))
+            types.setdefault(key, []).append(str(row.syntype))
 
         # Accumulate query results into Python lists
         ids        = []
         attributes = []
         additional = []
 
-        for row in result:
-            # Normalize HPO ID format
-            ids.append(getConceptIDFromString(str(row.hpoID)))
+        for row in g.query(synonymQuery, initNs=_INIT_NS):
+            key = (str(row.hpoID), str(row.synclass), str(row.synonym))
 
-            # Raw synonym literal
-            attributes.append(row.synonym)
+            # One row per synonym type; a synonym without a typed axiom
+            # gets one row with the direct type ("" maps to it).
+            for syntype in types.get(key, [""]):
+                # Normalize HPO ID format
+                ids.append(getConceptIDFromString(str(row.hpoID)))
 
-            # Map RDF property to internal synonym class and type; an
-            # unbound ?syntype (no typed axiom) maps to the direct type.
-            syntype = "" if row.syntype is None else str(row.syntype)
-            additional.append({
-                semanticClass : getSynonymClassFromString(str(row.synclass)),
-                sourceType    : getSynonymTypeFromString(syntype),
-            })
+                # Raw synonym literal
+                attributes.append(row.synonym)
+
+                # Map RDF property and type to internal class and type
+                additional.append({
+                    semanticClass : getSynonymClassFromString(str(row.synclass)),
+                    sourceType    : getSynonymTypeFromString(syntype),
+                })
 
         # Build a standardized DataFrame representation
         ret = pd.DataFrame({
