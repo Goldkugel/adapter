@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "adapter"
-version = "1.1.4"
+version = "1.1.5"
 requires-python = ">=3.9"
 dependencies = [
-    "logger @ git+https://github.com/Goldkugel/logger.git@v1.0.6",
+    "logger @ git+https://github.com/Goldkugel/logger.git@v1.1.0",
     "owlready2",
     "pandas",
     "pydantic>=2",
