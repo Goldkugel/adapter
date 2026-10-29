@@ -155,25 +155,67 @@ conceptPrefix    : str = "MRCONSO"
 definitionPrefix : str = "MRDEF"
 
 
+# Rows read from an RRF file at a time. Each chunk is filtered before
+# the next one is read, so only the rows that are kept accumulate in
+# memory (MRCONSO alone has well over ten million rows).
+rrfChunkSize : int = 1_000_000
+
+# Columns of MRCONSO and MRDEF that the transformers below use. The
+# other columns are skipped while reading, which saves most of the
+# memory since every value is held as a Python string.
+mrconsoUsedColumns = [
+    rrfConceptUniqueIdentifier,
+    rrfLanguage,
+    rrfSourceAbbreviation,
+    rrfTermType,
+    rrfSourceCode,
+    rrfString,
+    rrfSuppressibleFlag,
+]
+
+mrdefUsedColumns = [
+    rrfConceptUniqueIdentifier,
+    rrfSourceAbbreviation,
+    rrfDefinition,
+    rrfSuppressibleFlag,
+]
+
+
+def _isEnglishAndNotSuppressed(data: pd.DataFrame) -> pd.Series:
+    """Row mask for English (LAT = ENG), non-suppressed (SUPPRESS = N) rows."""
+    return (data[rrfLanguage] == englishLanguage) & (data[rrfSuppressibleFlag] == no)
+
+
+def _isNotSuppressed(data: pd.DataFrame) -> pd.Series:
+    """Row mask for non-suppressed (SUPPRESS = N) rows."""
+    return data[rrfSuppressibleFlag] == no
+
+
 def _readRRFFile(
-    path     : str,
-    columns  : list[str],
-    encoding : str,
-    separator: str
+    path      : str,
+    columns   : list[str],
+    encoding  : str,
+    separator : str,
+    usecols   : list[str] | None = None,
+    rowFilter = None
 ) -> pd.DataFrame:
     """
     Read a UMLS RRF file into a DataFrame.
 
     RRF files have no header row — column names are supplied explicitly
     from the UMLS documentation. A trailing pipe at the end of each row
-    means pandas sees one extra unnamed column; it is read into a
-    temporary "_" column and dropped immediately after loading.
+    means pandas sees one extra unnamed column; it is named "_" so that
+    it can be told apart from the real columns, and is never kept.
 
     All columns are read as strings to avoid misinterpreting CUIs or
     other numeric-looking fields. RRF has no quoting, so quote characters
     are kept as part of the string, and NA detection is disabled so
     strings like "NA" (sodium) or "None" are not turned into missing
     values; empty fields become "".
+
+    The file is read in chunks of rrfChunkSize rows, and rowFilter is
+    applied to each chunk before the next one is read, so the full file
+    is never held in memory at once.
 
     Parameters
     ----------
@@ -186,28 +228,54 @@ def _readRRFFile(
         Character encoding of the file.
     separator : str
         Field delimiter (pipe "|" for standard RRF files).
+    usecols : list[str], optional
+        Subset of `columns` to read. All columns if omitted.
+    rowFilter : callable, optional
+        Function taking a chunk and returning a boolean row mask; only
+        rows where it is True are kept. All rows if omitted.
 
     Returns
     -------
     pd.DataFrame
-        DataFrame with one row per RRF record and named columns.
+        DataFrame with one row per kept RRF record and the read columns.
     """
     l = Logger()
     l.printFileProcessingStart(path)
-    ret = pd.read_csv(
+
+    if usecols is None:
+        usecols = columns
+
+    reader = pd.read_csv(
         path,
-        sep        = separator,
-        header     = None,
+        sep             = separator,
+        header          = None,
         names           = columns + ["_"],  # absorb the trailing pipe
+        usecols         = usecols,
         dtype           = str,
         encoding        = encoding,
-        low_memory      = False,
         quoting         = csv.QUOTE_NONE,
         keep_default_na = False,
+        chunksize       = rrfChunkSize,
     )
+
+    chunks = []
+    for chunk in reader:
+        if rowFilter is not None:
+            chunk = chunk[rowFilter(chunk)]
+        chunks.append(chunk)
+
+    # pd.concat needs at least one frame; an empty file yields none.
+    if chunks:
+        ret = pd.concat(chunks, ignore_index=True)
+    else:
+        ret = pd.DataFrame(columns=usecols, dtype=str)
+
+    # read_csv returns usecols in file order; restore the requested order.
+    ret = ret[usecols]
+
     l.printFileProcessingEnd(path)
     l.log(f"{len(ret)} entities of UMLS extracted.")
-    return ret.drop(columns="_", errors="ignore")
+    return ret
 
 
 def readMRCONSOFile(
@@ -218,8 +286,15 @@ def readMRCONSOFile(
     """
     Read MRCONSO.RRF: one row per concept string across all source
     vocabularies, including preferred terms, synonyms, and source codes.
+
+    Only the columns used by getConcepts() and only English,
+    non-suppressed rows are kept.
     """
-    return _readRRFFile(path, mrconsoColumns, encoding, separator)
+    return _readRRFFile(
+        path, mrconsoColumns, encoding, separator,
+        usecols   = mrconsoUsedColumns,
+        rowFilter = _isEnglishAndNotSuppressed,
+    )
 
 
 def readMRDEFFile(
@@ -230,8 +305,15 @@ def readMRDEFFile(
     """
     Read MRDEF.RRF: one row per concept definition, sourced from
     individual vocabularies included in the UMLS Metathesaurus.
+
+    Only the columns used by getDefinitions() and only non-suppressed
+    rows are kept.
     """
-    return _readRRFFile(path, mrdefColumns, encoding, separator)
+    return _readRRFFile(
+        path, mrdefColumns, encoding, separator,
+        usecols   = mrdefUsedColumns,
+        rowFilter = _isNotSuppressed,
+    )
 
 
 def readMRSTYFile(
@@ -267,11 +349,10 @@ def getConcepts(
     """
     l = Logger()
 
-    # Keep only English, non-suppressed rows.
-    filtered = data[
-        (data[rrfLanguage] == englishLanguage) &
-        (data[rrfSuppressibleFlag] == no)
-    ].copy()
+    # Keep only English, non-suppressed rows. readMRCONSOFile() already
+    # drops the others while reading; this keeps the transformer correct
+    # for frames that were read without that filter.
+    filtered = data[_isEnglishAndNotSuppressed(data)].copy()
 
     l.log(f"Transforming {len(filtered)} rows into EAV schema...")
 
@@ -338,9 +419,10 @@ def getDefinitions(
     """
     l = Logger()
 
-    # Keep only non-suppressed rows with a non-empty definition.
+    # Keep only non-suppressed rows with a non-empty definition
+    # (readMRDEFFile() already drops suppressed rows while reading).
     filtered = data[
-        (data[rrfSuppressibleFlag] == no) &
+        _isNotSuppressed(data) &
         data[rrfDefinition].notna() &
         (data[rrfDefinition].str.strip() != "")
     ].copy()

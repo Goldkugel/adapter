@@ -17,6 +17,7 @@ import os
 from unittest.mock  import MagicMock, patch
 from .UMLSAdapter       import UMLSAdapter
 from .UMLSAdapterUtils  import readRRFFileByPath
+from .                  import UMLSAdapterUtils
 from ..BaseAdapterUtils import referenceClass
 import pandas       as pd
 import yaml
@@ -260,7 +261,8 @@ class TestUMLSAdapterLoad:
 class TestUMLSAdapterUtilsParsing:
     """
     Tests for reading real RRF content: strings must be read verbatim,
-    without CSV quote handling or NA detection.
+    without CSV quote handling or NA detection, and only the used
+    columns and the kept rows must be loaded.
     """
 
     def test_mrconso_strings_are_read_verbatim(self, tmp_path):
@@ -277,6 +279,46 @@ class TestUMLSAdapterUtilsParsing:
 
         strings = frame[frame["attribute"] != referenceClass]
         assert strings["value"].tolist() == ['"Hazardous" stuff', "NA", '"Unbalanced quote', "Plain"]
+
+    def test_mrconso_reader_keeps_used_columns_and_filters_every_chunk(self, tmp_path, monkeypatch):
+        # A chunk size of 2 spreads the rows over three chunks, so the
+        # filter must be applied to each chunk, not only the first.
+        monkeypatch.setattr(UMLSAdapterUtils, "rrfChunkSize", 2)
+        rows = [
+            ["C1", "ENG", "P", "L1", "PF", "S1", "Y", "A1", "", "", "", "MSH", "PT", "D1", "Kept one", "0", "N", ""],
+            ["C2", "GER", "P", "L2", "PF", "S2", "Y", "A2", "", "", "", "MSH", "PT", "D2", "German", "0", "N", ""],
+            ["C3", "ENG", "P", "L3", "PF", "S3", "Y", "A3", "", "", "", "MSH", "PT", "D3", "Suppressed", "0", "O", ""],
+            ["C4", "ENG", "P", "L4", "PF", "S4", "Y", "A4", "", "", "", "MSH", "SY", "D4", "Kept two", "0", "N", ""],
+            ["C5", "FRE", "P", "L5", "PF", "S5", "Y", "A5", "", "", "", "MSH", "PT", "D5", "French", "0", "N", ""],
+        ]
+        path = tmp_path / "MRCONSO.RRF"
+        path.write_text("".join("|".join(r) + "|\n" for r in rows), encoding="utf-8")
+
+        frame = UMLSAdapterUtils.readMRCONSOFile(str(path), "utf-8", "|")
+
+        assert list(frame.columns) == UMLSAdapterUtils.mrconsoUsedColumns
+        assert frame["STR"].tolist() == ["Kept one", "Kept two"]
+
+    def test_mrdef_reader_drops_suppressed_rows(self, tmp_path):
+        rows = [
+            ["C1", "A1", "AT1", "", "MSH", "Kept", "N", ""],
+            ["C2", "A2", "AT2", "", "MSH", "Suppressed", "E", ""],
+        ]
+        path = tmp_path / "MRDEF.RRF"
+        path.write_text("".join("|".join(r) + "|\n" for r in rows), encoding="utf-8")
+
+        frame = readRRFFileByPath(str(path), "id", "attribute", "value", "additional", "utf-8", "|")
+
+        assert frame["value"].tolist() == ["Kept"]
+
+    def test_empty_rrf_file_gives_empty_frame(self, tmp_path):
+        path = tmp_path / "MRCONSO.RRF"
+        path.write_text("", encoding="utf-8")
+
+        frame = UMLSAdapterUtils.readMRCONSOFile(str(path), "utf-8", "|")
+
+        assert frame.empty
+        assert list(frame.columns) == UMLSAdapterUtils.mrconsoUsedColumns
 
 
 if __name__ == "__main__":
