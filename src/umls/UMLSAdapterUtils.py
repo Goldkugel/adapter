@@ -2,8 +2,10 @@
 Utility functions and constants for the UMLS adapter.
 
 Provides RRF column layouts, file readers, and EAV transformers for
-the MRCONSO and MRDEF RRF release files. All functions are used by
-UMLSAdapter.load().
+the MRCONSO and MRDEF RRF release files, which UMLSAdapter.load()
+processes. Column layouts for MRSTY and MRREL, and a reader for MRSTY,
+are defined as well but not yet wired into readRRFFileByPath(), so
+those files are skipped if configured.
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ from ..BaseAdapterUtils import labelClass, definitionClass, referenceClass, syno
 from logger             import Logger
 import pandas           as pd
 import os
+import csv
 
 # --- Filter value constants ---
 
@@ -167,7 +170,10 @@ def _readRRFFile(
     temporary "_" column and dropped immediately after loading.
 
     All columns are read as strings to avoid misinterpreting CUIs or
-    other numeric-looking fields.
+    other numeric-looking fields. RRF has no quoting, so quote characters
+    are kept as part of the string, and NA detection is disabled so
+    strings like "NA" (sodium) or "None" are not turned into missing
+    values; empty fields become "".
 
     Parameters
     ----------
@@ -192,10 +198,12 @@ def _readRRFFile(
         path,
         sep        = separator,
         header     = None,
-        names      = columns + ["_"],  # absorb the trailing pipe
-        dtype      = str,
-        encoding   = encoding,
-        low_memory = False,
+        names           = columns + ["_"],  # absorb the trailing pipe
+        dtype           = str,
+        encoding        = encoding,
+        low_memory      = False,
+        quoting         = csv.QUOTE_NONE,
+        keep_default_na = False,
     )
     l.printFileProcessingEnd(path)
     l.log(f"{len(ret)} entities of UMLS extracted.")
@@ -361,8 +369,9 @@ def getDefinitions(
     return result
 
 
-# Ordered (prefix, reader/transformer) pairs, checked against a file's
-# basename. A more specific prefix must be listed before any shorter
+# Prefix -> reader and prefix -> transformer lookups, checked in
+# insertion order against a file's basename; the first matching prefix
+# wins. A more specific prefix must be listed before any shorter
 # prefix it could also satisfy; none of the current RRF prefixes overlap,
 # but new file types should be added with that in mind.
 _rrfReadersByPrefix = {

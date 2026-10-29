@@ -1,5 +1,9 @@
 # Configuration
 
+The `logger`, `normalizer` and `llm` sections of `config.yaml` belong to
+other packages of the pipeline that share this file; only the `adapter`
+section is read by this package.
+
 All adapter settings are stored in `config.yaml` under the top-level
 `adapter` section. Each subsection is keyed by the adapter's short name
 (`hpo`, `sct`, `umls`) and maps directly to a `BaseAdapterConfig` Pydantic
@@ -23,7 +27,7 @@ model. Fields not explicitly set fall back to the defaults defined in
 | `id_column` | string | `"id"` | Name of the EAV identifier column in the output CSV. |
 | `attribute_column` | string | `"attribute"` | Name of the EAV attribute column in the output CSV. |
 | `value_column` | string | `"value"` | Name of the EAV value column in the output CSV. |
-| `additional_column` | string | `"additional"` | Name of the EAV additional-information column (JSON object) in the output CSV. |
+| `additional_column` | string | `"additional"` | Name of the EAV additional-information column (a dict, written as a Python dict literal) in the output CSV. |
 
 ---
 
@@ -50,20 +54,26 @@ adapter:
 
 ## `sct` — SNOMED CT
 
-The SCT adapter reads multiple RF2 release files. The Concept file is required
-and must be included — it is used to build the active-concept filter set that
-restricts all other files to currently active concepts.
+The SCT adapter reads multiple RF2 release files. Exactly one Concept file is
+required — it is used to build the active-concept filter set that restricts
+all other files to currently active concepts. `load()` raises a
+`FileNotFoundError` if it is missing and a `ValueError` if more than one is
+configured.
 
 ```yaml
 adapter:
   sct:
     input_folder: "./data/input/sct/"
     input_files:
+      - "der2_sRefset_SimpleMapFull_INT_20260701.txt"
       - "sct2_Concept_Full_INT_20260701.txt"
       - "sct2_Description_Full-en_INT_20260701.txt"
-      - "sct2_TextDefinition_Full-en_INT_20260701.txt"
+      - "sct2_sRefset_OWLExpressionFull_INT_20260701.txt"
       - "sct2_Relationship_Full_INT_20260701.txt"
-      - "der2_sRefset_SimpleMapFull_INT_20260701.txt"
+      - "sct2_RelationshipConcreteValues_Full_INT_20260701.txt"
+      - "sct2_Identifier_Full_INT_20260701.txt"
+      - "sct2_StatedRelationship_Full_INT_20260701.txt"
+      - "sct2_TextDefinition_Full-en_INT_20260701.txt"
     output_folder: "./data/output/transformed/sct/"
     output_file: "sct.csv"
     skip_if_present: false
@@ -78,16 +88,22 @@ adapter:
 | `sct2_Concept_` | Active concept list (filter only, no EAV output) | — |
 | `sct2_Description_` | Fully Specified Names and Synonyms | `label`, `synonym` |
 | `sct2_TextDefinition_` | Free-text definitions | `definition` |
-| `sct2_Relationship_` | IS-A relationships | `child` |
-| `der2_sRefset_SimpleMapFull` | Cross-map reference sets (e.g. ICD-10) | `reference` |
+| `sct2_Relationship_` | Inferred IS-A relationships | `child` |
+| `der2_sRefset_SimpleMap` | Cross-map reference sets (e.g. ICD-O), Full/Snapshot/Delta | `reference` |
 
 Files whose names do not match any of the prefixes above are skipped with a
-log warning. Other RF2 files (e.g. `sct2_StatedRelationship_`,
-`sct2_Identifier_`) are currently not processed.
+log message. In the configuration above, this applies to
+`sct2_sRefset_OWLExpression…`, `sct2_RelationshipConcreteValues_…`,
+`sct2_Identifier_…` and `sct2_StatedRelationship_…`; they are listed but not
+processed.
 
 **Notes:**
 - `separator` must be `"\t"` (tab) — the standard RF2 delimiter.
+- Full and Snapshot files can both be used. For Full files, only the latest
+  version (highest `effectiveTime`) of each component is kept before the
+  active filter is applied, so historical rows never reach the output.
 - The release date in the filename (e.g. `20260701`) does not affect processing.
+- IDs (and the values of `child` rows) are prefixed with `SNOMEDCT_US:`.
 
 ---
 
@@ -103,6 +119,10 @@ adapter:
     input_files:
       - "MRCONSO.RRF"
       - "MRDEF.RRF"
+      - "MRRANK.RRF"
+      - "MRREL.RRF"
+      - "MRSAT.RRF"
+      - "MRSTY.RRF"
     output_folder: "./data/output/transformed/umls/"
     output_file: "umls.csv"
     skip_if_present: false
@@ -118,10 +138,12 @@ adapter:
 | `MRDEF` | Concept definitions | `definition` |
 
 Files whose names do not match any of the prefixes above are skipped with a
-log warning. Other RRF files (e.g. `MRREL`, `MRSTY`) are currently not
-processed.
+log message. In the configuration above, this applies to `MRRANK`, `MRREL`,
+`MRSAT` and `MRSTY`; they are listed but not processed.
 
 **Notes:**
 - `separator` must be `"|"` (pipe) — the standard RRF delimiter.
+- RRF has no quoting: strings are read verbatim (quote characters included),
+  and values such as `NA` are kept as strings rather than treated as missing.
 - UMLS requires a license from the U.S. National Library of Medicine (NLM).
   The RRF files are not redistributable and must be downloaded separately.

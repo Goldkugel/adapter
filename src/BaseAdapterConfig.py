@@ -5,8 +5,9 @@ class BaseAdapterConfig(BaseModel):
     Pydantic model defining and validating the configuration schema shared
     by all ontology adapters.
 
-    Instances are typically created via `Adapter()`. Pydantic validates
-    field types and enforces defaults for any fields not present in the
+    Instances are created by `BaseAdapter.__init__()` from one section of
+    the YAML config file (e.g. `adapter.hpo`). Pydantic validates field
+    types and enforces defaults for any fields not present in the
     supplied data.
 
     Ontology-specific adapters that need additional fields (e.g. a release
@@ -32,7 +33,8 @@ class BaseAdapterConfig(BaseModel):
     # Name of the CSV file to write to within `output_folder`.
     output_file: str        = "ontology.csv"
 
-    # Field delimiter used when writing the EAV CSV file.
+    # Field delimiter used when writing the EAV CSV file (output). See
+    # `separator` for the delimiter of the input files.
     delimiter: str          = ";"
 
     # Character encoding used for both reading input files and writing
@@ -48,12 +50,14 @@ class BaseAdapterConfig(BaseModel):
     # The column where the values will be stored.
     value_column: str       = "value"
 
-    # The column where additional information in form of a JSON object will be
-    # stored.
+    # The column where additional information is stored as a dict (written
+    # to the CSV as a Python dict literal, readable with ast.literal_eval).
     additional_column: str  = "additional"
 
-    # Skip if the output file is already present.
+    # If True, load() does nothing when the output file already exists.
     skip_if_present: bool   = False
 
-    # The separator of tabular files if necessary.
+    # Field separator used when reading tabular input files (input), e.g.
+    # "\t" for SNOMED CT RF2 and "|" for UMLS RRF. Unused by the HPO
+    # adapter, which parses an OWL file.
     separator: str          = "\t"

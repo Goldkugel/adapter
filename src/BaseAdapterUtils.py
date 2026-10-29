@@ -14,6 +14,10 @@ import pandas   as pd
 import os
 import csv
 
+# --- EAV attribute names (values of the attribute column) ---
+
+# childrenClass rows read "id has child value": the id is the parent
+# concept and the value is one of its direct children.
 labelClass      : str = "label"
 definitionClass : str = "definition"
 commentClass    : str = "comment"
@@ -95,6 +99,9 @@ def writeCSV(
 ) -> int:
     """
     Write a DataFrame to disk as a CSV file with logging.
+
+    Every field is quoted (csv.QUOTE_ALL), so values containing the
+    separator, quotes or line breaks survive a round trip.
 
     Parameters
     ----------

@@ -1,8 +1,8 @@
 # Data
 
 This directory contains all input, output, and log data used by the adapter.
-None of the files in this directory are tracked by version control — only the
-folder structure itself is committed.
+None of the data files in this directory are tracked by version control —
+only the folder structure and its README files are committed.
 
 ---
 
@@ -52,8 +52,11 @@ RF2 filenames; the following file types are processed:
 | `sct2_Concept_` | Concept file (required — used as the active-concept filter) |
 | `sct2_Description_` | Fully Specified Names and Synonyms |
 | `sct2_TextDefinition_` | Free-text definitions |
-| `sct2_Relationship_` | IS-A relationships |
-| `der2_sRefset_SimpleMapFull` | Cross-map reference sets (e.g. ICD-10) |
+| `sct2_Relationship_` | Inferred IS-A relationships |
+| `der2_sRefset_SimpleMap` | Cross-map reference sets (e.g. ICD-O) |
+
+Other RF2 files may be placed here and listed in the configuration, but they
+are skipped (see `config/README.md`).
 
 SNOMED CT requires a license from [SNOMED International](https://www.snomed.org).
 
@@ -82,10 +85,10 @@ The CSV uses the following columns by default (configurable):
 
 | Column | Description |
 |---|---|
-| `id` | Concept identifier (e.g. `HP:0000118`, `123456789`, `C0001`) |
-| `attribute` | EAV attribute name (e.g. `label`, `synonym`, `definition`, `child`, `reference`) |
+| `id` | Concept identifier (e.g. `HP:0000118`, `SNOMEDCT_US:404684003`, `C0000005`) |
+| `attribute` | EAV attribute name (e.g. `label`, `synonym`, `definition`, `comment`, `child`, `reference`) |
 | `value` | Attribute value (e.g. the label string or the child concept ID) |
-| `additional` | JSON object with supplementary metadata (e.g. source abbreviation, synonym type) |
+| `additional` | Dict with supplementary metadata (e.g. source abbreviation, synonym type), written as a Python dict literal |
 
 ---
 

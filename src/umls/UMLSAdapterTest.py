@@ -1,12 +1,13 @@
 """
 Tests for UMLSAdapter and UMLSAdapterUtils.
 
-Contains three test classes:
+Contains four test classes:
 - TestUMLSAdapterInit: unit tests for configuration loading via __init__.
 - TestUMLSAdapterLoadSkipping: tests for the skip-if-present and
   no-input-files early-exit paths.
 - TestUMLSAdapterLoad: tests for file reading, merging, cleaning, and
   the row count returned by load().
+- TestUMLSAdapterUtilsParsing: tests for reading real RRF content.
 """
 
 from __future__ import annotations
@@ -14,7 +15,9 @@ from __future__ import annotations
 import os
 
 from unittest.mock  import MagicMock, patch
-from .UMLSAdapter   import UMLSAdapter
+from .UMLSAdapter       import UMLSAdapter
+from .UMLSAdapterUtils  import readRRFFileByPath
+from ..BaseAdapterUtils import referenceClass
 import pandas       as pd
 import yaml
 import pytest
@@ -252,6 +255,28 @@ class TestUMLSAdapterLoad:
         ret = adapter.load()
 
         assert ret == 2
+
+
+class TestUMLSAdapterUtilsParsing:
+    """
+    Tests for reading real RRF content: strings must be read verbatim,
+    without CSV quote handling or NA detection.
+    """
+
+    def test_mrconso_strings_are_read_verbatim(self, tmp_path):
+        rows = [
+            ["C1", "ENG", "P", "L1", "PF", "S1", "Y", "A1", "", "SC1", "", "MSH", "PT", "D1", '"Hazardous" stuff', "0", "N", ""],
+            ["C2", "ENG", "P", "L2", "PF", "S2", "Y", "A2", "", "SC2", "", "MSH", "AB", "D2", "NA", "0", "N", ""],
+            ["C3", "ENG", "P", "L3", "PF", "S3", "Y", "A3", "", "SC3", "", "MSH", "PT", "D3", '"Unbalanced quote', "0", "N", ""],
+            ["C4", "ENG", "P", "L4", "PF", "S4", "Y", "A4", "", "SC4", "", "MSH", "PT", "D4", "Plain", "0", "N", ""],
+        ]
+        path = tmp_path / "MRCONSO.RRF"
+        path.write_text("".join("|".join(r) + "|\n" for r in rows), encoding="utf-8")
+
+        frame = readRRFFileByPath(str(path), "id", "attribute", "value", "additional", "utf-8", "|")
+
+        strings = frame[frame["attribute"] != referenceClass]
+        assert strings["value"].tolist() == ['"Hazardous" stuff', "NA", '"Unbalanced quote', "Plain"]
 
 
 if __name__ == "__main__":

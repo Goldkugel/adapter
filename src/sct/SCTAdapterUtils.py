@@ -12,6 +12,7 @@ from ..BaseAdapterUtils import labelClass, definitionClass, referenceClass, chil
 from logger             import Logger
 import pandas           as pd
 import os
+import csv
 
 # --- EAV additional-column key ---
 
@@ -40,18 +41,25 @@ rf2SourceLanguageCode           : str = "languageCode"
 
 # --- RF2 column layouts ---
 
-# Standard RF2 column layouts. Every RF2 file starts with these five
-# columns; Description/TextDefinition and the SimpleMap refset each add
-# their own columns after that.
+# Columns read (via usecols) from each RF2 file type. Every RF2 file
+# starts with id, effectiveTime, active and moduleId, followed by
+# columns specific to the file type; unused columns are not loaded.
+# Every layout includes id and effectiveTime so that _readRF2File() can
+# reduce Full release files to the latest version of each component.
+# In the comments, "ID" / "Value" / "Additional" name the EAV column a
+# source column ends up in.
 conceptColumns = [
-    rf2SourceId,                # ID
+    rf2SourceId,                # ID (SCTID of the concept)
+    rf2SourceEffectiveTime,     # Keep only the latest version per id
     rf2SourceActive,            # Filter: only include if active
     rf2SourceDefinitionStatusId # Additional
 ]
 
 descriptionColumns = [
+    rf2SourceId,                # Description ID (not the concept ID)
+    rf2SourceEffectiveTime,     # Keep only the latest version per id
     rf2SourceActive,            # Filter: only include if active
-    rf2SourceConceptId,         # ID
+    rf2SourceConceptId,         # ID (concept the description belongs to)
     rf2SourceTypeId,            # 900000000000003001 = FSN -> label
                                 # 900000000000013009 = Synonym -> synonym
                                 # 900000000000550004 = Definition -> definition
@@ -64,8 +72,8 @@ descriptionColumns = [
 textDefinitionColumns = descriptionColumns
 
 relationshipColumns = [
-    rf2SourceId,           
-    rf2SourceEffectiveTime,
+    rf2SourceId,                # Relationship ID
+    rf2SourceEffectiveTime,     # Keep only the latest version per id
     rf2SourceActive,            # Filter: only include if active
     rf2SourceSourceId,          # ID
     rf2SourceDestinationId,     # Value, attribute is always "child"
@@ -74,6 +82,8 @@ relationshipColumns = [
 ]
 
 simpleMapColumns = [
+    rf2SourceId,                    # Refset member ID (UUID)
+    rf2SourceEffectiveTime,         # Keep only the latest version per id
     rf2SourceActive,                # Filter: only include if active
     rf2SourceRefsetId,              # Additional
     rf2SourceReferencedComponentId, # ID
@@ -85,11 +95,22 @@ simpleMapColumns = [
 # Expected filename prefix for each RF2 file type. Used by
 # readRF2FileByPath() to determine which reader function — and
 # therefore which columns — apply to a given file, based on its name.
+# The trailing underscore in relationshipPrefix matters: it matches the
+# inferred sct2_Relationship_ file but neither sct2_StatedRelationship_
+# nor sct2_RelationshipConcreteValues_, which are not processed.
+# simpleMapPrefix matches the Full, Snapshot and Delta variants.
 conceptPrefix        : str = "sct2_Concept_"
 descriptionPrefix    : str = "sct2_Description_"
 textDefinitionPrefix : str = "sct2_TextDefinition_"
 relationshipPrefix   : str = "sct2_Relationship_"
-simpleMapPrefix      : str = "der2_sRefset_SimpleMapFull"
+simpleMapPrefix      : str = "der2_sRefset_SimpleMap"
+
+# --- Output ID prefix ---
+
+# Prefix added to every SCTID in the EAV output (ids and child values).
+# Matches the source abbreviation used by UMLS, which downstream mapping
+# code relies on.
+sctIdPrefix          : str = "SNOMEDCT_US:"
 
 # --- SNOMED CT description type IDs ---
 
@@ -140,12 +161,16 @@ def _readRF2File(
         keep_default_na = False,
         encoding        = encoding,
         usecols         = columns,
+        quoting         = csv.QUOTE_NONE,  # RF2 has no quoting
     )
 
-    # Keep only the most recent version of each row.
-    # Full release files contain one row per effectiveTime per entity;
+    # Keep only the most recent version of each component (concept,
+    # description, relationship, refset member — identified by id).
+    # Full release files contain one row per effectiveTime per component;
     # deduplicating here ensures superseded rows never reach the
-    # transformer functions regardless of their active flag.
+    # transformer functions, so a component that was active once but
+    # later inactivated is seen as inactive. effectiveTime is YYYYMMDD,
+    # so sorting the strings sorts chronologically.
     if rf2SourceEffectiveTime in ret.columns and rf2SourceId in ret.columns:
         ret = ret.sort_values(rf2SourceEffectiveTime, ascending=False) \
             .drop_duplicates(subset=[rf2SourceId], keep="first")
@@ -210,7 +235,7 @@ def readSimpleMapFile(
 ) -> pd.DataFrame:
     """
     Read the Simple Map reference set file: one row per mapping from a
-    SNOMED CT concept to a code in another scheme (e.g. ICD-10).
+    SNOMED CT concept to a code in another scheme (e.g. ICD-O).
     """
     return _readRF2File(path, simpleMapColumns, encoding, separator)
 
@@ -302,7 +327,7 @@ def getChildren(
         id_column        : isA[rf2SourceDestinationId].values,
         attribute_column : [childrenClass] * len(isA),
         value_column     : isA[rf2SourceSourceId].values,
-        additional_column: [{}] * len(isA),
+        additional_column: [{} for _ in range(len(isA))],
     })
 
 
@@ -319,7 +344,7 @@ def getReferences(
     referencedComponentId becomes the id, mapTarget becomes the value,
     attribute is fixed to referenceClass, and refsetId is carried through
     as additional information (needed to identify which target ontology
-    the mapping belongs to, e.g. ICD-10, ICD-O).
+    the mapping belongs to, e.g. ICD-O).
     """
     active = _activeOnly(data)
 
@@ -362,10 +387,11 @@ def getDefinitions(
     })
 
 
-# Ordered (prefix, reader/transformer) pairs, checked against a file's
-# basename. A more specific prefix must be listed before any shorter
-# prefix it could also satisfy; none of the current RF2 prefixes overlap,
-# but new file types should be added with that in mind.
+# Prefix -> reader and prefix -> transformer lookups, checked in
+# insertion order against a file's basename; the first matching prefix
+# wins. A more specific prefix must be listed before any shorter prefix
+# it could also satisfy; none of the current RF2 prefixes overlap, but
+# new file types should be added with that in mind.
 _rf2ReadersByPrefix = {
     descriptionPrefix    : readDescriptionFile,
     textDefinitionPrefix : readTextDefinitionFile,

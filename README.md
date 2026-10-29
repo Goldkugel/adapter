@@ -60,13 +60,15 @@ adapter/
 
 ## Requirements
 
-- Python 3.11 or newer (recommended)
+- Python 3.9 or newer
 - pandas
-- pydantic
+- pydantic (version 2)
 - PyYAML
 - owlready2 (for HPO support)
 - rdflib (for HPO support)
-- logger package
+- [logger](https://github.com/Goldkugel/logger) package
+
+All dependencies are declared in `pyproject.toml` and installed by `pip install .`.
 
 ---
 
@@ -136,25 +138,32 @@ The extracted information is converted into the common EAV representation.
 
 ### SNOMED CT
 
-The SNOMED CT adapter processes RF2 release files and extracts terminology into the same EAV format used by the HPO adapter. Supported RF2 file types include Concept, Description, TextDefinition, Relationship, and SimpleMap reference set files.
+The SNOMED CT adapter processes RF2 release files and extracts terminology into the same EAV format used by the HPO adapter. Supported RF2 file types are Concept, Description, TextDefinition, Relationship (inferred IS-A relationships) and SimpleMap reference set files; other configured RF2 files are skipped.
+
+Full release files contain every historical version of each component. The adapter keeps only the latest version, so concepts, descriptions, relationships and maps that were later inactivated are not included. The Concept file is required: it restricts all other files to currently active concepts. SNOMED CT IDs are written with the prefix `SNOMEDCT_US:`, matching the UMLS source abbreviation.
 
 ---
 
 ### UMLS
 
-The UMLS adapter processes RRF release files (MRCONSO, MRDEF) and extracts concepts, synonyms, definitions, and source references into the same EAV format used by the other adapters.
+The UMLS adapter processes RRF release files (MRCONSO, MRDEF) and extracts concepts, synonyms, definitions, and source references into the same EAV format used by the other adapters. Only English, non-suppressed rows are used; other configured RRF files are skipped.
 
 ---
 
 ## Output Format
 
-All adapters produce a normalized Entity–Attribute–Value table with the following columns:
+All adapters produce a normalized Entity–Attribute–Value table with the following columns (illustrative rows):
 
-| id | attribute | value |
-|----|-----------|-------|
-| HP:0000118 | label | Phenotypic abnormality |
-| HP:0000118 | definition | A phenotypic abnormality. |
-| HP:0000118 | synonym | Clinical abnormality |
+| id | attribute | value | additional |
+|----|-----------|-------|------------|
+| HP:0000118 | label | Phenotypic abnormality | {} |
+| HP:0000118 | definition | A phenotypic abnormality. | {} |
+| HP:0000118 | synonym | Clinical abnormality | {'semantic_class': 'exact', 'source_type': 'direct'} |
+| HP:0000118 | child | HP:0000119 | {} |
+
+The `additional` column holds a dictionary with source-specific metadata, e.g. the synonym class and type for HPO, the case significance or map refset for SNOMED CT, or the source vocabulary for UMLS. It is written as a Python dict literal (single quotes, not JSON), so read it back with `ast.literal_eval`. A `child` row means that `value` is a direct child (subclass) of `id`.
+
+All fields are quoted, and the field delimiter is configurable (`;` by default).
 
 This common representation enables downstream processing independent of the original ontology format. The EAV attribute names are defined as constants in `BaseAdapterUtils.py` (e.g. `labelClass`, `synonymClass`) and should be reused by any new adapter.
 
@@ -165,13 +174,15 @@ This common representation enables downstream processing independent of the orig
 Example:
 
 ```python
-from src import HPOAdapter
+from adapter import HPOAdapter
 
-adapter = HPOAdapter()
+adapter = HPOAdapter()              # reads ./config/config.yaml by default
 
 adapter.load()
 adapter.to_csv()
 ```
+
+When working directly in a clone of this repository without installing it, import from `src` instead (`from src import HPOAdapter`). Paths in the configuration are relative to the working directory, so run from the repository root.
 
 The resulting CSV is written to the configured output directory.
 
@@ -210,11 +221,13 @@ Install in editable mode:
 pip install -e .
 ```
 
-Run the test suite with pytest:
+Run the test suite with pytest from the repository root:
 
 ```bash
 pytest src/
 ```
+
+Most tests use mocks or small temporary files. The `TestHPOAdapterLoad` tests are integration tests and need the real `hp.owl` in `data/input/hpo/`.
 
 Place ontology input files inside the appropriate directory under `data/input/` before running an adapter.
 

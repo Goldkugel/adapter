@@ -1,17 +1,26 @@
 """
 Tests for HPOAdapter and its configuration loading.
 
-Contains two test classes:
+Contains three test classes:
 - TestHPOAdapterInit: unit tests for configuration loading via __init__.
 - TestHPOAdapterLoad: integration tests against the real hp.owl file,
   verifying the shape and contents of the loaded EAV DataFrame.
+- TestHPOAdapterUtilsQueries: unit tests for the SPARQL extractors
+  against a small in-memory graph.
 """
 
 from __future__ import annotations
 
 import pytest
 
+from unittest.mock      import MagicMock
+from rdflib             import Graph
 from .HPOAdapter        import HPOAdapter
+from .HPOAdapterUtils   import (
+    getSynonymsAndTypes, getReferences,
+    semanticClass, sourceType, exactSynonymClass, relatedSynonymClass,
+    laypersonSynonymType, directSynonymType,
+)
 from ..BaseAdapterUtils import (
     labelClass, definitionClass, commentClass,
     referenceClass, childrenClass, synonymClass,
@@ -121,6 +130,86 @@ class TestHPOAdapterLoad:
         adapter, _ = loaded_adapter
         id_column = adapter.data[adapter.config.id_column]
         assert not id_column.str.contains("#", na=False).any()
+
+
+# Minimal OWL content in the RDF shape OWLAPI writes for hp.owl: annotated
+# synonyms and definitions have both the direct triple and an owl:Axiom.
+SAMPLE_TTL = """
+@prefix rdf:      <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:     <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:      <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
+@prefix obo:      <http://purl.obolibrary.org/obo/> .
+@prefix oboInOwl: <http://www.geneontology.org/formats/oboInOwl#> .
+
+obo:HP_1 a owl:Class ;
+    rdfs:label "Concept one" ;
+    obo:IAO_0000115 "A definition." ;
+    oboInOwl:hasDbXref "UMLS:C1" ;
+    oboInOwl:hasExactSynonym "plain", "lay" ;
+    oboInOwl:hasRelatedSynonym "sourced" .
+
+[] a owl:Axiom ;
+    owl:annotatedSource obo:HP_1 ;
+    owl:annotatedProperty oboInOwl:hasExactSynonym ;
+    owl:annotatedTarget "lay" ;
+    oboInOwl:hasSynonymType <http://purl.obolibrary.org/obo/hp#layperson> ;
+    oboInOwl:hasDbXref "ORCID:1" .
+
+[] a owl:Axiom ;
+    owl:annotatedSource obo:HP_1 ;
+    owl:annotatedProperty oboInOwl:hasRelatedSynonym ;
+    owl:annotatedTarget "sourced" ;
+    oboInOwl:hasDbXref "PMID:2" .
+
+[] a owl:Axiom ;
+    owl:annotatedSource obo:HP_1 ;
+    owl:annotatedProperty obo:IAO_0000115 ;
+    owl:annotatedTarget "A definition." ;
+    oboInOwl:hasDbXref "PMID:3" .
+
+obo:HP_2 a owl:Class ;
+    owl:deprecated true ;
+    oboInOwl:hasExactSynonym "deprecated synonym" .
+
+obo:HP_3 a owl:Class ;
+    oboInOwl:is_obsolete "true"^^xsd:boolean ;
+    oboInOwl:hasExactSynonym "obsolete synonym" .
+"""
+
+
+@pytest.fixture
+def sample_hpo():
+    """
+    A stand-in for an owlready2 ontology whose RDF graph is SAMPLE_TTL,
+    so the real SPARQL queries in HPOAdapterUtils can run without hp.owl.
+    """
+    hpo = MagicMock()
+    hpo.world.as_rdflib_graph.return_value = Graph().parse(data=SAMPLE_TTL, format="turtle")
+    return hpo
+
+
+class TestHPOAdapterUtilsQueries:
+    """
+    Unit tests running the HPOAdapterUtils SPARQL extractors against a
+    small in-memory graph.
+    """
+
+    def test_each_synonym_is_extracted_once_with_its_type(self, sample_hpo):
+        frame = getSynonymsAndTypes(sample_hpo, "id", "attribute", "value", "additional")
+        rows = sorted(
+            (r.id, str(r.value), r.additional[semanticClass], r.additional[sourceType])
+            for r in frame.itertuples()
+        )
+        assert rows == [
+            ("HP:1", "lay",     exactSynonymClass,   laypersonSynonymType),
+            ("HP:1", "plain",   exactSynonymClass,   directSynonymType),
+            ("HP:1", "sourced", relatedSynonymClass, directSynonymType),
+        ]
+
+    def test_references_exclude_xrefs_on_axioms(self, sample_hpo):
+        frame = getReferences(sample_hpo, "id", "attribute", "value", "additional")
+        assert [(r.id, str(r.value)) for r in frame.itertuples()] == [("HP:1", "UMLS:C1")]
 
 
 if __name__ == "__main__":

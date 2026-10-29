@@ -89,9 +89,9 @@ class UMLSAdapter(BaseAdapter):
                     ret = len(self.data)
                     l.log(f"Found {ret} entities/rows in total.")
 
-                    # Remove rows without an identifier — these can appear
-                    # when a CUI fails to resolve or a mapping row references
-                    # a retired concept.
+                    # Remove rows without an identifier (CUI). Defensive:
+                    # every RRF row has a CUI, so normally nothing is
+                    # removed here.
                     l.log("Removing rows without an ID...")
                     self.data = self.data[
                         (self.data[self.config.id_column].notna()) &
@@ -101,8 +101,8 @@ class UMLSAdapter(BaseAdapter):
                     ret = len(self.data)
                     l.log(f"Reduced to {ret} entities/rows in total.")
 
-                    # Remove rows without a value — empty strings or map
-                    # targets add no information and can cause issues
+                    # Remove rows without a value — empty strings, codes or
+                    # definitions add no information and can cause issues
                     # downstream (e.g. empty cells in the EAV CSV).
                     l.log("Removing rows without values...")
                     self.data = self.data[
@@ -114,8 +114,8 @@ class UMLSAdapter(BaseAdapter):
                     l.log(f"Reduced to {ret} entities/rows in total.")
 
                     # Remove exact duplicates across (id, attribute, value) —
-                    # the same term can appear in multiple source vocabularies,
-                    # so deduplication ensures clean downstream output.
+                    # the same term can appear in multiple source vocabularies;
+                    # only the first row's source abbreviation is kept.
                     l.log("Removing duplicate rows...")
                     self.data = self.data.drop_duplicates(subset=[
                         self.config.id_column,

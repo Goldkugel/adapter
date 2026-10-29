@@ -12,7 +12,7 @@ from __future__ import annotations
 from logger             import Logger
 from ..BaseAdapterUtils import labelClass, definitionClass, commentClass, referenceClass, childrenClass, synonymClass
 from owlready2          import Ontology
-from rdflib             import Namespace, XSD
+from rdflib             import Namespace, RDFS, XSD
 import pandas           as pd
 
 # --- Synonym class constants ---
@@ -61,6 +61,7 @@ RDF      = Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
 # Shared namespace bindings passed to every SPARQL query.
 _INIT_NS = {
     "rdf"      : RDF,
+    "rdfs"     : RDFS,
     "owl"      : OWL,
     "obo"      : OBO,
     "oboInOwl" : OBOINOWL,
@@ -185,38 +186,32 @@ def getSynonymsAndTypes(
         # - Synonym text
         # - Synonym class (exact, broad, narrow, related)
         # - Optional synonym type (e.g. layperson, abbreviation)
+        #
+        # In the RDF serialisation, every synonym is stored as a direct
+        # triple; synonyms with extra annotations additionally have an
+        # owl:Axiom that repeats source/property/target. Matching the
+        # direct triple and only OPTIONALly joining the axiom's synonym
+        # type yields each synonym once (per type), instead of once as
+        # "direct" and once more via the axiom.
         query = """
-        SELECT ?hpoID ?synonym ?synclass ?syntype WHERE
+        SELECT DISTINCT ?hpoID ?synonym ?synclass ?syntype WHERE
         {
             FILTER NOT EXISTS { ?hpoID owl:deprecated true }
-            FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete "true" }
-            {
-                # Direct class annotations without axiom metadata
-                ?hpoID ?synclass ?synonym .
-                FILTER(?synclass IN (
-                    oboInOwl:hasExactSynonym,
-                    oboInOwl:hasBroadSynonym,
-                    oboInOwl:hasNarrowSynonym,
-                    oboInOwl:hasRelatedSynonym
-                ))
-                # Direct annotations have no synonym type metadata
-                BIND(\"""" + directSynonymType + """\" AS ?syntype)
-            }
-            UNION
-            {
-                # Synonyms defined via OWL axioms (allow extra annotations)
+            FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete ?obsolete . FILTER(str(?obsolete) = "true") }
+            ?hpoID ?synclass ?synonym .
+            FILTER(?synclass IN (
+                oboInOwl:hasExactSynonym,
+                oboInOwl:hasBroadSynonym,
+                oboInOwl:hasNarrowSynonym,
+                oboInOwl:hasRelatedSynonym
+            ))
+            # Optional synonym type (e.g. layperson, obsolete)
+            OPTIONAL {
                 ?axiom rdf:type owl:Axiom .
                 ?axiom owl:annotatedSource ?hpoID .
                 ?axiom owl:annotatedProperty ?synclass .
                 ?axiom owl:annotatedTarget ?synonym .
-                FILTER(?synclass IN (
-                    oboInOwl:hasExactSynonym,
-                    oboInOwl:hasBroadSynonym,
-                    oboInOwl:hasNarrowSynonym,
-                    oboInOwl:hasRelatedSynonym
-                ))
-                # Optional synonym type (e.g. layperson, obsolete)
-                OPTIONAL { ?axiom oboInOwl:hasSynonymType ?syntype }
+                ?axiom oboInOwl:hasSynonymType ?syntype .
             }
         }
         """
@@ -236,10 +231,12 @@ def getSynonymsAndTypes(
             # Raw synonym literal
             attributes.append(row.synonym)
 
-            # Map RDF property to internal synonym class and type
+            # Map RDF property to internal synonym class and type; an
+            # unbound ?syntype (no typed axiom) maps to the direct type.
+            syntype = "" if row.syntype is None else str(row.syntype)
             additional.append({
                 semanticClass : getSynonymClassFromString(str(row.synclass)),
-                sourceType    : getSynonymTypeFromString(str(row.syntype)),
+                sourceType    : getSynonymTypeFromString(syntype),
             })
 
         # Build a standardized DataFrame representation
@@ -277,11 +274,12 @@ def getComments(
 
         g = hpo.world.as_rdflib_graph()
 
-        # SPARQL query retrieves comments from both direct and axiom-based sources
+        # SPARQL query retrieves comments from both direct and axiom-based
+        # sources; DISTINCT collapses a comment found by both branches
         query = """
             SELECT DISTINCT ?hpoID ?comment WHERE {
                 FILTER NOT EXISTS { ?hpoID owl:deprecated true }
-                FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete "true" }
+                FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete ?obsolete . FILTER(str(?obsolete) = "true") }
                 {
                     # Direct comment annotation
                     ?hpoID rdfs:comment ?comment .
@@ -338,11 +336,12 @@ def getDefinitions(
 
         g = hpo.world.as_rdflib_graph()
 
-        # Retrieve definitions from direct and axiom-based annotations
+        # Retrieve definitions from direct and axiom-based annotations;
+        # DISTINCT collapses a definition found by both branches
         query = """
             SELECT DISTINCT ?hpoID ?definition WHERE {
                 FILTER NOT EXISTS { ?hpoID owl:deprecated true }
-                FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete "true" }
+                FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete ?obsolete . FILTER(str(?obsolete) = "true") }
                 {
                     ?hpoID obo:IAO_0000115 ?definition .
                 }
@@ -396,11 +395,13 @@ def getLabels(
 
         g = hpo.world.as_rdflib_graph()
 
-        # Simple query for concept labels
+        # Simple query for labels. This also matches labelled entities
+        # that are not concepts (e.g. annotation properties); their rows
+        # are removed by the ID filters in HPOAdapter.load().
         query = """
             SELECT ?hpoID ?label WHERE {
                 FILTER NOT EXISTS { ?hpoID owl:deprecated true }
-                FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete "true" }
+                FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete ?obsolete . FILTER(str(?obsolete) = "true") }
                 ?hpoID rdfs:label ?label .
             }
         """
@@ -449,13 +450,15 @@ def getChildren(
         # Convert Owlready2 ontology into an RDFLib graph
         g = hpo.world.as_rdflib_graph()
 
-        # Retrieve all subclass relationships
+        # Retrieve all subclass relationships. Superclasses that are
+        # anonymous restrictions (blank nodes) yield an empty parent ID
+        # and are removed by HPOAdapter.load().
         query = """
             SELECT ?child ?parent WHERE {
                 FILTER NOT EXISTS { ?child owl:deprecated true }
-                FILTER NOT EXISTS { ?child oboInOwl:is_obsolete "true" }
+                FILTER NOT EXISTS { ?child oboInOwl:is_obsolete ?obsolete . FILTER(str(?obsolete) = "true") }
                 FILTER NOT EXISTS { ?parent owl:deprecated true }
-                FILTER NOT EXISTS { ?parent oboInOwl:is_obsolete "true" }
+                FILTER NOT EXISTS { ?parent oboInOwl:is_obsolete ?obsolete . FILTER(str(?obsolete) = "true") }
                 ?child rdfs:subClassOf ?parent .
             }
         """
@@ -492,9 +495,9 @@ def getReferences(
     """
     Extract database cross-references (DbXrefs) for HPO concepts.
 
-    Includes:
-    - Direct hasDbXref annotations
-    - Axiom-annotated DbXrefs
+    Only hasDbXref annotations made directly on the concept are used.
+    DbXrefs on owl:Axiom nodes annotate other annotations (e.g. the
+    sources of a definition or synonym) and are not concept references.
     """
     ret = None
     l = Logger()
@@ -504,20 +507,15 @@ def getReferences(
 
         g = hpo.world.as_rdflib_graph()
 
-        # Retrieve cross-references from both direct and axiom-based annotations
+        # Retrieve cross-references annotated directly on the concept
+        # (isIRI excludes the blank owl:Axiom nodes, which carry
+        # hasDbXref too)
         query = """
             SELECT DISTINCT ?hpoID ?xref WHERE {
+                FILTER(isIRI(?hpoID))
                 FILTER NOT EXISTS { ?hpoID owl:deprecated true }
-                FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete "true" }
-                {
-                    ?hpoID oboInOwl:hasDbXref ?xref .
-                }
-                UNION
-                {
-                    ?axiom rdf:type owl:Axiom .
-                    ?axiom owl:annotatedSource ?hpoID .
-                    ?axiom oboInOwl:hasDbXref ?xref .
-                }
+                FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete ?obsolete . FILTER(str(?obsolete) = "true") }
+                ?hpoID oboInOwl:hasDbXref ?xref .
             }
         """
 

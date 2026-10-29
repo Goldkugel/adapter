@@ -1,12 +1,13 @@
 """
 Tests for SCTAdapter and SCTAdapterUtils.
 
-Contains five test classes:
+Contains six test classes:
 - TestSCTAdapterInit: unit tests for configuration loading via __init__.
 - TestFindInputFile: unit tests for the _findInputFile helper method.
 - TestSCTAdapterLoadSkipping: tests for the skip-if-present and no-input-files paths.
 - TestSCTAdapterLoadConceptHandling: tests for Concept file reading and filtering.
 - TestSCTAdapterLoadMerging: tests for DataFrame merging and row count.
+- TestSCTAdapterUtilsFullRelease: tests for reading real RF2 Full files.
 """
 
 from __future__ import annotations
@@ -18,7 +19,10 @@ from .SCTAdapter        import SCTAdapter
 from .SCTAdapterUtils   import (
     conceptPrefix, rf2SourceId,
     descriptionPrefix, relationshipPrefix,
+    readConceptFile, getConcepts, getChildren, readRF2FileByPath,
+    synonymTypeId, isARelationshipTypeId,
 )
+from ..BaseAdapterUtils import childrenClass
 import pandas           as pd
 import yaml
 import pytest
@@ -280,6 +284,101 @@ class TestSCTAdapterLoadMerging:
         assert ret == 3
         assert len(adapter.data) == 3
         assert set(adapter.data[adapter.config.attribute_column]) == {"label", "child"}
+
+    @patch("os.path.isfile", return_value=False)
+    def test_load_raises_when_no_concept_file_is_configured(self, mock_is_file, tmp_path):
+        config = {"adapter": {"sct": {"input_files": [DESCRIPTION_FILE]}}}
+        path = tmp_path / "config.yaml"
+        with open(path, "w") as f:
+            yaml.safe_dump(config, f)
+        adapter = SCTAdapter(config=str(path))
+
+        with pytest.raises(FileNotFoundError):
+            adapter.load()
+
+
+def write_rf2(path, header, rows):
+    """Write a tab-separated RF2 file with the given header and rows."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\t".join(header) + "\n")
+        for row in rows:
+            f.write("\t".join(row) + "\n")
+    return str(path)
+
+
+class TestSCTAdapterUtilsFullRelease:
+    """
+    Tests for reading Full RF2 release files: only the latest version of
+    each component may survive, and terms are read verbatim.
+    """
+
+    def test_concept_inactivated_in_a_later_release_is_not_active(self, tmp_path):
+        path = write_rf2(
+            tmp_path / "sct2_Concept_Full_INT_20260701.txt",
+            ["id", "effectiveTime", "active", "moduleId", "definitionStatusId"],
+            [
+                ["100", "20020131", "1", "m", "d"],
+                ["100", "20200131", "0", "m", "d"],
+                ["200", "20020131", "1", "m", "d"],
+            ],
+        )
+        concepts = getConcepts(readConceptFile(path, "utf-8", "\t"), rf2SourceId)
+        assert concepts == ["200"]
+
+    def test_description_inactivated_in_a_later_release_is_dropped(self, tmp_path):
+        path = write_rf2(
+            tmp_path / "sct2_Description_Full-en_INT_20260701.txt",
+            ["id", "effectiveTime", "active", "moduleId", "conceptId",
+             "languageCode", "typeId", "term", "caseSignificanceId"],
+            [
+                ["1", "20020131", "1", "m", "100", "en", synonymTypeId, "Old term", "c"],
+                ["1", "20200131", "0", "m", "100", "en", synonymTypeId, "Old term", "c"],
+                ["2", "20200131", "1", "m", "100", "en", synonymTypeId, '"Quoted" term', "c"],
+            ],
+        )
+        frame = readRF2FileByPath(path, "id", "attribute", "value", "additional", "utf-8", "\t")
+        assert frame["value"].tolist() == ['"Quoted" term']
+
+    def test_retired_simple_map_member_is_dropped(self, tmp_path):
+        path = write_rf2(
+            tmp_path / "der2_sRefset_SimpleMapSnapshot_INT_20260701.txt",
+            ["id", "effectiveTime", "active", "moduleId", "refsetId",
+             "referencedComponentId", "mapTarget"],
+            [
+                ["u1", "20020131", "1", "m", "r", "100", "A00"],
+                ["u1", "20200131", "0", "m", "r", "100", "A00"],
+                ["u2", "20200131", "1", "m", "r", "100", "B00"],
+            ],
+        )
+        frame = readRF2FileByPath(path, "id", "attribute", "value", "additional", "utf-8", "\t")
+        assert frame["value"].tolist() == ["B00"]
+
+    def test_only_the_inferred_relationship_file_produces_children(self, tmp_path):
+        header = ["id", "effectiveTime", "active", "moduleId", "sourceId",
+                  "destinationId", "relationshipGroup", "typeId",
+                  "characteristicTypeId", "modifierId"]
+        rows = [["r1", "20200131", "1", "m", "200", "100", "0",
+                 isARelationshipTypeId, "c", "x"]]
+
+        inferred = write_rf2(tmp_path / "sct2_Relationship_Full_INT_20260701.txt", header, rows)
+        frame = readRF2FileByPath(inferred, "id", "attribute", "value", "additional", "utf-8", "\t")
+        assert frame[["id", "attribute", "value"]].values.tolist() == [["100", childrenClass, "200"]]
+
+        for name in [
+            "sct2_StatedRelationship_Full_INT_20260701.txt",
+            "sct2_RelationshipConcreteValues_Full_INT_20260701.txt",
+        ]:
+            path = write_rf2(tmp_path / name, header, rows)
+            assert readRF2FileByPath(path, "id", "attribute", "value", "additional", "utf-8", "\t") is None
+
+    def test_children_rows_do_not_share_their_additional_dict(self):
+        data = pd.DataFrame({
+            "id": ["r1", "r2"], "effectiveTime": ["1", "1"], "active": ["1", "1"],
+            "sourceId": ["2", "3"], "destinationId": ["1", "1"],
+            "typeId": [isARelationshipTypeId] * 2, "characteristicTypeId": ["c", "c"],
+        })
+        frame = getChildren(data, "id", "attribute", "value", "additional")
+        assert frame["additional"].iloc[0] is not frame["additional"].iloc[1]
 
 
 if __name__ == "__main__":

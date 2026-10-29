@@ -13,10 +13,10 @@ from __future__ import annotations
 import os
 
 from ..BaseAdapter      import BaseAdapter, standard_directory
-from ..BaseAdapterUtils import isFile
+from ..BaseAdapterUtils import isFile, childrenClass
 from .SCTAdapterUtils   import (
     conceptPrefix, readConceptFile, getConcepts, rf2SourceId,
-    readRF2FileByPath, removeNotActiveConcepts,
+    readRF2FileByPath, removeNotActiveConcepts, sctIdPrefix,
 )
 from logger             import Logger
 import pandas           as pd
@@ -85,27 +85,22 @@ class SCTAdapter(BaseAdapter):
                 l.log(f"Loading SNOMED CT from "
                       f"{len(self.config.input_files)} files...")
 
-                concepts = None
-
                 # Separate the Concept file from the rest — it is read
                 # first to build the active-concept filter set, then
-                # excluded from the main EAV extraction loop.
-                files = self.config.input_files.copy()
-                for input_file in self.config.input_files:
-                    if str(input_file).startswith(conceptPrefix) and concepts is None:
-                        files.remove(input_file)
-                        full_path = os.path.join(
-                            self.config.input_folder,
-                            input_file
-                        )
-                        concepts = getConcepts(
-                            readConceptFile(
-                                full_path,
-                                self.config.encoding,
-                                self.config.separator
-                            ),
-                            rf2SourceId
-                        )
+                # excluded from the main EAV extraction loop. Raises if
+                # no (or more than one) Concept file is configured, since
+                # without it inactive concepts cannot be filtered out.
+                concept_file = self._findInputFile(conceptPrefix)
+                files = [f for f in self.config.input_files if f != concept_file]
+
+                concepts = getConcepts(
+                    readConceptFile(
+                        os.path.join(self.config.input_folder, concept_file),
+                        self.config.encoding,
+                        self.config.separator
+                    ),
+                    rf2SourceId
+                )
 
                 frames = []
 
@@ -141,9 +136,10 @@ class SCTAdapter(BaseAdapter):
                     ret = len(self.data)
                     l.log(f"Found {ret} entities/rows in total.")
 
-                    # Remove rows without an identifier — these can appear
-                    # when a concept URI fails to resolve to a valid SCTID,
-                    # or when a mapping row references a retired concept.
+                    # Remove rows without an identifier. Defensive: the
+                    # active-concept filter above already drops rows whose
+                    # ID is not an active SCTID, so normally nothing is
+                    # removed here.
                     l.log("Removing rows without an ID...")
                     self.data = self.data[
                         (self.data[self.config.id_column].notna()) &
@@ -166,9 +162,9 @@ class SCTAdapter(BaseAdapter):
                     l.log(f"Reduced to {ret} entities/rows in total.")
 
                     # Remove exact duplicates across (id, attribute, value) —
-                    # the same term or relationship can appear in both a Full
-                    # and a Snapshot RF2 file if both are configured, so
-                    # deduplication ensures clean downstream output.
+                    # e.g. the same synonym text in two descriptions of a
+                    # concept, or the same map target in several refsets
+                    # (only the first row's additional info is kept).
                     l.log("Removing duplicate rows...")
                     self.data = self.data.drop_duplicates(subset=[
                         self.config.id_column,
@@ -178,13 +174,13 @@ class SCTAdapter(BaseAdapter):
                     l.log("Removing duplicate rows completed.")
 
                     l.log("Adding prefix...")
-                    # Add SNOMEDCT_US: prefix to the id column
-                    self.data[self.config.id_column] = "SNOMEDCT_US:" + self.data[self.config.id_column].astype(str)
+                    # Add the SCTID prefix to the id column
+                    self.data[self.config.id_column] = sctIdPrefix + self.data[self.config.id_column].astype(str)
 
-                    # Add SNOMEDCT_US: prefix to the value column where attribute is "child"
-                    child_mask = self.data[self.config.attribute_column] == "child"
+                    # Add the SCTID prefix to the value column of child rows
+                    child_mask = self.data[self.config.attribute_column] == childrenClass
                     self.data.loc[child_mask, self.config.value_column] = (
-                        "SNOMEDCT_US:" + self.data.loc[child_mask, self.config.value_column].astype(str)
+                        sctIdPrefix + self.data.loc[child_mask, self.config.value_column].astype(str)
                     )
                     l.log("Adding prefix completed.")
 

@@ -96,6 +96,9 @@ class HPOAdapter(BaseAdapter):
                     ret = len(self.data)
                     l.log(f"Found {ret} entities/rows in total.")
 
+                    # Remove rows without an ID — these come from blank
+                    # nodes (owl:Axiom annotations, anonymous class
+                    # restrictions), whose IDs cannot be converted.
                     l.log("Removing rows without an ID...")
                     self.data = self.data[
                         self.data[self.config.id_column].notna() &
@@ -105,6 +108,9 @@ class HPOAdapter(BaseAdapter):
                     ret = len(self.data)
                     l.log(f"Reduced to {ret} entities/rows in total.")
 
+                    # Remove rows with a '#' in the ID — these are not
+                    # concepts but hash IRIs such as annotation properties
+                    # (oboInOwl#hasDbXref) or synonym types (hp#layperson).
                     l.log("Removing rows with a '#' in the ID...")
                     self.data[self.config.id_column] = self.data[self.config.id_column].astype(str)
                     self.data = self.data[
