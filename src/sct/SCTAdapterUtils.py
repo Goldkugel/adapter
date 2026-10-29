@@ -105,13 +105,6 @@ textDefinitionPrefix : str = "sct2_TextDefinition_"
 relationshipPrefix   : str = "sct2_Relationship_"
 simpleMapPrefix      : str = "der2_sRefset_SimpleMap"
 
-# --- Output ID prefix ---
-
-# Prefix added to every SCTID in the EAV output (ids and child values).
-# Matches the source abbreviation used by UMLS, which downstream mapping
-# code relies on.
-sctIdPrefix          : str = "SNOMEDCT_US:"
-
 # --- SNOMED CT description type IDs ---
 
 # SNOMED CT description type IDs (values found in the Description /

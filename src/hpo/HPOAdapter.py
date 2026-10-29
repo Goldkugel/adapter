@@ -1,9 +1,10 @@
 """
 Concrete adapter for the Human Phenotype Ontology (HPO).
 
-Loads an OWL-format HPO file via owlready2, runs each extractor from
-HPOAdapterUtils against it, and concatenates the results into a single
-EAV DataFrame stored in self.data.
+Loads an OWL-format HPO file via owlready2 and runs each extractor from
+HPOAdapterUtils against it. BaseAdapter.load() merges and cleans the
+results; HPO IDs already carry their prefix ("HP:"), so the configured
+prefix is empty by default.
 """
 
 from __future__ import annotations
@@ -11,7 +12,6 @@ from __future__ import annotations
 import os
 
 from ..BaseAdapter      import BaseAdapter, standard_directory
-from ..BaseAdapterUtils import isFile
 from owlready2          import get_ontology
 from logger             import Logger
 from .HPOAdapterUtils   import (
@@ -31,102 +31,75 @@ class HPOAdapter(BaseAdapter):
     Loads the OWL file specified in the adapter configuration via
     owlready2, then runs each HPOAdapterUtils extractor (labels,
     definitions, comments, children, references, synonyms) against
-    it and concatenates the results into self.data.
+    it.
     """
+
+    ontology_name  = "the Human Phenotype Ontology (HPO)"
+
+    # Used if the config section doesn't set `prefix`.
+    default_prefix = ""
 
     def __init__(self, config: str = standard_directory):
         super().__init__(config, config_keyword)
 
-    def load(self) -> int:
+    def _loadFrames(self) -> list[pd.DataFrame]:
         """
-        Load the HPO OWL file and populate self.data with all
-        extracted EAV rows.
+        Load the HPO OWL file and run every extractor against it.
 
         Returns
         -------
-        int
-            Number of EAV rows loaded into self.data.
+        list[pd.DataFrame]
+            One EAV DataFrame per extractor (labels, definitions,
+            comments, children, references, synonyms).
         """
-        ret = 0
         l = Logger()
 
-        if self.config.input_files:
+        input_file = self.config.input_files[0]
+        l.log(f"Loading the Human Phenotype Ontology (HPO) from '{input_file}'...")
 
-            output_file = os.path.join(
-                self.config.output_folder,
-                self.config.output_file
+        path = os.path.join(self.config.input_folder, input_file)
+        hpo = get_ontology(path).load()
+
+        extractors = [
+            getLabels,
+            getDefinitions,
+            getComments,
+            getChildren,
+            getReferences,
+            getSynonymsAndTypes,
+        ]
+
+        frames = []
+        for extract in extractors:
+            frames.append(
+                extract(
+                    hpo,
+                    self.config.id_column,
+                    self.config.attribute_column,
+                    self.config.value_column,
+                    self.config.additional_column,
+                )
             )
 
-            if isFile(output_file) and self.config.skip_if_present:
-                l.log("Skipping loading since output file is already present.")
-            else:
-                input_file = self.config.input_files[0]
-                l.log(f"Loading the Human Phenotype Ontology (HPO) from '{input_file}'...")
+        return frames
 
-                path = os.path.join(self.config.input_folder, input_file)
-                hpo = get_ontology(path).load()
+    def _clean(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Remove rows with a '#' in the ID — these are not concepts but
+        hash IRIs such as annotation properties (oboInOwl#hasDbXref) or
+        synonym types (hp#layperson).
+        """
+        l = Logger()
 
-                extractors = [
-                    getLabels,
-                    getDefinitions,
-                    getComments,
-                    getChildren,
-                    getReferences,
-                    getSynonymsAndTypes,
-                ]
+        l.log("Removing rows with a '#' in the ID...")
+        id_column = self.config.id_column
+        data = data.copy()
+        data[id_column] = data[id_column].astype(str)
+        data = data[~data[id_column].str.contains('#', na=False)]
+        l.log("Removing rows with a '#' in the ID completed.")
+        l.log(f"Reduced to {len(data)} entities/rows in total.")
 
-                frames = []
-                for extract in extractors:
-                    frame = extract(
-                        hpo,
-                        self.config.id_column,
-                        self.config.attribute_column,
-                        self.config.value_column,
-                        self.config.additional_column,
-                    )
-                    if frame is not None:
-                        frames.append(frame)
-
-                if frames:
-                    l.log("Merging data...")
-                    self.data = pd.concat(frames, ignore_index=True)
-                    l.log("Merging data completed.")
-
-                if self.data is not None:
-                    ret = len(self.data)
-                    l.log(f"Found {ret} entities/rows in total.")
-
-                    # Remove rows without an ID — these come from blank
-                    # nodes (owl:Axiom annotations, anonymous class
-                    # restrictions), whose IDs cannot be converted.
-                    l.log("Removing rows without an ID...")
-                    self.data = self.data[
-                        self.data[self.config.id_column].notna() &
-                        (self.data[self.config.id_column] != '')
-                    ]
-                    l.log("Removing rows without an ID completed.")
-                    ret = len(self.data)
-                    l.log(f"Reduced to {ret} entities/rows in total.")
-
-                    # Remove rows with a '#' in the ID — these are not
-                    # concepts but hash IRIs such as annotation properties
-                    # (oboInOwl#hasDbXref) or synonym types (hp#layperson).
-                    l.log("Removing rows with a '#' in the ID...")
-                    self.data[self.config.id_column] = self.data[self.config.id_column].astype(str)
-                    self.data = self.data[
-                        ~self.data[self.config.id_column].str.contains('#', na=False)
-                    ]
-                    l.log("Removing rows with a '#' in the ID completed.")
-                    ret = len(self.data)
-                    l.log(f"Reduced to {ret} entities/rows in total.")
-                else:
-                    l.log("No data found. Is it the correct file?")
-
-                l.log(f"Loading the Human Phenotype Ontology (HPO) from '{input_file}' completed.")
-        else:
-            l.log("No input file found. Was it set in the configuration file?")
-
-        return ret
+        return data
 
 
 if __name__ == "__main__":

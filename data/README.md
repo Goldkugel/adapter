@@ -85,7 +85,7 @@ The CSV uses the following columns by default (configurable):
 
 | Column | Description |
 |---|---|
-| `id` | Concept identifier (e.g. `HP:0000118`, `SNOMEDCT_US:404684003`, `C0000005`) |
+| `id` | Concept identifier (e.g. `HP:0000118`, `SNOMEDCT_US:404684003`, `UMLS:C0000005`) |
 | `attribute` | EAV attribute name (e.g. `label`, `synonym`, `definition`, `comment`, `child`, `reference`) |
 | `value` | Attribute value (e.g. the label string or the child concept ID) |
 | `additional` | Dict with supplementary metadata (e.g. source abbreviation, synonym type), written as a Python dict literal |

@@ -6,8 +6,9 @@ here, as `hpo.csv` by default (see `adapter.hpo.output_file` in
 
 ## Content
 
-IDs are HPO CURIEs such as `HP:0000118`. Obsolete and deprecated terms are
-excluded.
+IDs are HPO CURIEs such as `HP:0000118` (`adapter.hpo.prefix` is empty, as
+the IDs already carry their prefix). Obsolete and deprecated terms are
+excluded, and duplicate `(id, attribute, value)` rows are dropped.
 
 | attribute | value | additional |
 |---|---|---|

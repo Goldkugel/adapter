@@ -6,6 +6,7 @@ adapter:
     output_folder: "./data/output/transformed/hpo/"
     output_file: "hpo.csv"
     skip_if_present: False
+    prefix: ""
   sct:
     input_folder: "./data/input/sct/"
     input_files:
@@ -21,6 +22,7 @@ adapter:
     output_folder: "./data/output/transformed/sct/"
     output_file: "sct.csv"
     skip_if_present: False
+    prefix: "SNOMEDCT_US:"
     encoding: "utf-8"
     separator: "\t"
   umls:
@@ -35,6 +37,7 @@ adapter:
     output_folder: "./data/output/transformed/umls/"
     output_file: "umls.csv"
     skip_if_present: False
+    prefix: "UMLS:"
     encoding: "utf-8"
     separator: "|"
 logger:

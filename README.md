@@ -140,13 +140,13 @@ The extracted information is converted into the common EAV representation.
 
 The SNOMED CT adapter processes RF2 release files and extracts terminology into the same EAV format used by the HPO adapter. Supported RF2 file types are Concept, Description, TextDefinition, Relationship (inferred IS-A relationships) and SimpleMap reference set files; other configured RF2 files are skipped.
 
-Full release files contain every historical version of each component. The adapter keeps only the latest version, so concepts, descriptions, relationships and maps that were later inactivated are not included. The Concept file is required: it restricts all other files to currently active concepts. SNOMED CT IDs are written with the prefix `SNOMEDCT_US:`, matching the UMLS source abbreviation.
+Full release files contain every historical version of each component. The adapter keeps only the latest version, so concepts, descriptions, relationships and maps that were later inactivated are not included. The Concept file is required: it restricts all other files to currently active concepts. SNOMED CT IDs are written with the configured prefix (`SNOMEDCT_US:` by default), matching the UMLS source abbreviation.
 
 ---
 
 ### UMLS
 
-The UMLS adapter processes RRF release files (MRCONSO, MRDEF) and extracts concepts, synonyms, definitions, and source references into the same EAV format used by the other adapters. Only English, non-suppressed rows are used; other configured RRF files are skipped.
+The UMLS adapter processes RRF release files (MRCONSO, MRDEF) and extracts concepts, synonyms, definitions, and source references into the same EAV format used by the other adapters. Only English, non-suppressed rows are used; other configured RRF files are skipped. Every concept gets a label: from its `PT`/`PN` strings, or otherwise from its preferred atom. CUIs are written with the configured prefix (`UMLS:` by default), the form HPO uses in its cross-references.
 
 ---
 
@@ -192,7 +192,7 @@ The resulting CSV is written to the configured output directory.
 
 To support another ontology:
 
-1. Subclass `BaseAdapter` and implement the `load()` method to populate `self.data` with EAV rows.
+1. Subclass `BaseAdapter`, set `ontology_name` (used in log messages) and `default_prefix`, and implement `_loadFrames()` to return the EAV rows read from the input files. The shared `load()` merges and cleans them and adds the prefix; override `_clean()` for source-specific cleaning.
 2. Use the shared EAV attribute-name constants from `BaseAdapterUtils` (e.g. `labelClass`, `synonymClass`) to keep attribute names consistent across adapters.
 3. Add a configuration section for the new adapter to `config/config.yaml`, following the same structure as the existing adapter sections.
 4. Export the new adapter class from `src/__init__.py`.

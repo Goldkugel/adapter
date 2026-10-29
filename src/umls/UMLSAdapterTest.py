@@ -18,7 +18,8 @@ from unittest.mock  import MagicMock, patch
 from .UMLSAdapter       import UMLSAdapter
 from .UMLSAdapterUtils  import readRRFFileByPath
 from .                  import UMLSAdapterUtils
-from ..BaseAdapterUtils import referenceClass
+from ..BaseAdapterUtils import referenceClass, labelClass
+from .UMLSAdapterUtils  import sourceAbbreviation
 import pandas       as pd
 import yaml
 import pytest
@@ -238,7 +239,7 @@ class TestUMLSAdapterLoad:
         adapter.load()
 
         assert len(adapter.data) == 1
-        assert adapter.data.iloc[0][adapter.config.id_column] == "C0001"
+        assert adapter.data.iloc[0][adapter.config.id_column] == "UMLS:C0001"
 
     @patch("os.path.isfile", return_value=False)
     @patch(f"{PATCH_MODULE}.readRRFFileByPath")
@@ -278,7 +279,36 @@ class TestUMLSAdapterUtilsParsing:
         frame = readRRFFileByPath(str(path), "id", "attribute", "value", "additional", "utf-8", "|")
 
         strings = frame[frame["attribute"] != referenceClass]
-        assert strings["value"].tolist() == ['"Hazardous" stuff', "NA", '"Unbalanced quote', "Plain"]
+        # The last "NA" is C2's fallback label (C2 has no PT/PN string).
+        assert strings["value"].tolist() == ['"Hazardous" stuff', "NA", '"Unbalanced quote', "Plain", "NA"]
+
+    def test_concept_without_pt_or_pn_gets_label_from_preferred_atom(self, tmp_path):
+        # TS, STT, ISPREF are columns 3, 5 and 7; TTY is column 13.
+        rows = [
+            # C1 has a PT string, so it gets no extra label.
+            ["C1", "ENG", "S", "L1", "VO", "S1", "N", "A1", "", "", "", "MSH", "SY", "D1", "C1 synonym", "0", "N", ""],
+            ["C1", "ENG", "P", "L2", "PF", "S2", "Y", "A2", "", "", "", "MSH", "PT", "D1", "C1 preferred", "0", "N", ""],
+            # C2 has only SY/AB/MH strings: the TS=P, STT=PF, ISPREF=Y atom wins.
+            ["C2", "ENG", "S", "L3", "PF", "S3", "Y", "A3", "", "", "", "MSH", "SY", "D2", "C2 secondary", "0", "N", ""],
+            ["C2", "ENG", "P", "L4", "VO", "S4", "Y", "A4", "", "", "", "MSH", "SY", "D2", "C2 variant", "0", "N", ""],
+            ["C2", "ENG", "P", "L4", "PF", "S5", "Y", "A5", "", "", "", "NCI", "MH", "D2", "C2 preferred", "0", "N", ""],
+            # A suppressed atom is never used, even if it is preferred.
+            ["C3", "ENG", "P", "L6", "PF", "S6", "Y", "A6", "", "", "", "MSH", "MH", "D3", "C3 suppressed", "0", "O", ""],
+            ["C3", "ENG", "S", "L7", "VO", "S7", "N", "A7", "", "", "", "MSH", "MH", "D3", "C3 kept", "0", "N", ""],
+        ]
+        path = tmp_path / "MRCONSO.RRF"
+        path.write_text("".join("|".join(r) + "|\n" for r in rows), encoding="utf-8")
+
+        frame = readRRFFileByPath(str(path), "id", "attribute", "value", "additional", "utf-8", "|")
+
+        labels = frame[frame["attribute"] == labelClass]
+        assert sorted(zip(labels["id"], labels["value"])) == [
+            ("C1", "C1 preferred"),
+            ("C2", "C2 preferred"),
+            ("C3", "C3 kept"),
+        ]
+        c2 = labels[labels["id"] == "C2"].iloc[0]
+        assert c2["additional"] == {sourceAbbreviation: "NCI"}
 
     def test_mrconso_reader_keeps_used_columns_and_filters_every_chunk(self, tmp_path, monkeypatch):
         # A chunk size of 2 spreads the rows over three chunks, so the

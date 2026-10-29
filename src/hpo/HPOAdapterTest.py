@@ -1,12 +1,13 @@
 """
 Tests for HPOAdapter and its configuration loading.
 
-Contains three test classes:
+Contains four test classes:
 - TestHPOAdapterInit: unit tests for configuration loading via __init__.
 - TestHPOAdapterLoad: integration tests against the real hp.owl file,
   verifying the shape and contents of the loaded EAV DataFrame.
 - TestHPOAdapterUtilsQueries: unit tests for the SPARQL extractors
   against a small in-memory graph.
+- TestHPOAdapterLoadWithSampleGraph: load() end to end on that graph.
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from __future__ import annotations
 import time
 import pytest
 
-from unittest.mock      import MagicMock
+from unittest.mock      import MagicMock, patch
 from rdflib             import Graph
 from .HPOAdapter        import HPOAdapter
 from .HPOAdapterUtils   import (
@@ -81,6 +82,9 @@ class TestHPOAdapterInit:
         assert adapter.config.attribute_column == "attribute"
         assert adapter.config.value_column == "value"
         assert adapter.config.additional_column == "additional"
+
+    def test_init_loads_empty_prefix_from_real_config(self, adapter):
+        assert adapter.config.prefix == ""
 
     def test_data_is_unset_before_load(self, adapter):
         assert adapter.data is None
@@ -260,6 +264,27 @@ obo:HP_{i + 10} a owl:Class ;
     def test_references_exclude_xrefs_on_axioms(self, sample_hpo):
         frame = getReferences(sample_hpo, "id", "attribute", "value", "additional")
         assert [(r.id, str(r.value)) for r in frame.itertuples()] == [("HP:1", "UMLS:C1")]
+
+
+class TestHPOAdapterLoadWithSampleGraph:
+    """
+    Runs HPOAdapter.load() end to end on the small in-memory graph, so
+    the shared BaseAdapter steps are covered without hp.owl.
+    """
+
+    def test_load_extracts_cleans_and_keeps_hp_ids(self, adapter, sample_hpo):
+        with patch("os.path.isfile", return_value=False), \
+             patch("src.hpo.HPOAdapter.get_ontology") as mock_get_ontology:
+            mock_get_ontology.return_value.load.return_value = sample_hpo
+            ret = adapter.load()
+
+        data = adapter.data
+        assert ret == len(data) > 0
+        # Only the active concept HP:1 is left, without a prefix added.
+        assert set(data[adapter.config.id_column]) == {"HP:1"}
+        assert set(data[adapter.config.attribute_column]) == {
+            labelClass, definitionClass, referenceClass, synonymClass,
+        }
 
 
 if __name__ == "__main__":

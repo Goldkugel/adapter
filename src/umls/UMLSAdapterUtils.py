@@ -29,6 +29,15 @@ synonymTerm       : str = "SY"   # Synonym
 abbreviationTerm  : str = "AB"   # Abbreviation
 preferredNameTerm : str = "PN"   # Preferred name
 
+# --- Preferred-atom flag values (MRCONSO columns TS, STT and ISPREF) ---
+
+# Used to pick a label for concepts without a PT/PN string: the atom
+# whose term status is "P" (preferred LUI of the concept), string type
+# "PF" (preferred form of the term) and ISPREF "Y" (preferred atom of
+# the string) is the concept's preferred atom.
+preferredTermStatus : str = "P"
+preferredStringType : str = "PF"
+
 # --- Language filter ---
 
 # Only English-language rows are extracted from MRCONSO.
@@ -166,6 +175,9 @@ rrfChunkSize : int = 1_000_000
 mrconsoUsedColumns = [
     rrfConceptUniqueIdentifier,
     rrfLanguage,
+    rrfTermStatus,
+    rrfStringType,
+    rrfIsPreferred,
     rrfSourceAbbreviation,
     rrfTermType,
     rrfSourceCode,
@@ -328,6 +340,47 @@ def readMRSTYFile(
     return _readRRFFile(path, mrstyColumns, encoding, separator)
 
 
+def _getFallbackLabels(
+    data             : pd.DataFrame,
+    id_column        : str,
+    attribute_column : str,
+    value_column     : str,
+    additional_column: str,
+) -> pd.DataFrame:
+    """
+    Pick one label per concept from a raw (filtered) MRCONSO DataFrame.
+
+    Used for concepts that have no PT/PN string. Each concept's atoms
+    are ranked by how many of the preferred-atom flags they have, in
+    this order: TS = P, STT = PF, ISPREF = Y. The string of the best
+    atom becomes the label; ties keep the first atom in file order.
+    The source abbreviation (SAB) is carried as additional information.
+    """
+    candidates = data[data[rrfString].notna() & (data[rrfString] != "")]
+
+    # Lower rank is better; each missing flag adds its weight, so TS
+    # outweighs STT, which outweighs ISPREF.
+    rank = (
+        (candidates[rrfTermStatus]  != preferredTermStatus).astype(int) * 4 +
+        (candidates[rrfStringType]  != preferredStringType).astype(int) * 2 +
+        (candidates[rrfIsPreferred] != yes).astype(int)
+    )
+    best = (
+        candidates.assign(_rank=rank.values)
+        .sort_values("_rank", kind="stable")
+        .drop_duplicates(subset=[rrfConceptUniqueIdentifier], keep="first")
+    )
+
+    return pd.DataFrame({
+        id_column        : best[rrfConceptUniqueIdentifier].values,
+        attribute_column : [labelClass] * len(best),
+        value_column     : best[rrfString].values,
+        additional_column: best[rrfSourceAbbreviation].map(
+            lambda v: {sourceAbbreviation: v}
+        ).values,
+    })
+
+
 def getConcepts(
     data             : pd.DataFrame,
     id_column        : str,
@@ -343,9 +396,11 @@ def getConcepts(
     - PT / PN  -> label
     - SY / AB  -> synonym
 
-    Each string (STR) produces one label or synonym row. Each source
-    code (CODE) produces one reference row carrying the source
-    abbreviation (SAB) as additional information.
+    Each string (STR) produces one label or synonym row. Each concept
+    without a PT/PN string gets one label from its preferred atom
+    instead (see _getFallbackLabels). Each source code (CODE) produces
+    one reference row carrying the source abbreviation (SAB) as
+    additional information.
     """
     l = Logger()
 
@@ -378,6 +433,19 @@ def getConcepts(
         ).values,
     })
 
+    # Give every concept without a PT/PN label one label from its
+    # preferred atom.
+    labelled = label_synonym_rows.loc[
+        label_synonym_rows[attribute_column] == labelClass, id_column
+    ]
+    fallback_rows = _getFallbackLabels(
+        filtered[~filtered[rrfConceptUniqueIdentifier].isin(labelled)],
+        id_column,
+        attribute_column,
+        value_column,
+        additional_column,
+    )
+
     # Build reference rows for rows with a non-empty source code.
     has_code = filtered[filtered[rrfSourceCode].notna() & (filtered[rrfSourceCode] != "")].copy()
 
@@ -394,7 +462,7 @@ def getConcepts(
     l.log("Removing duplicated rows...")
 
     result = (
-        pd.concat([label_synonym_rows, reference_rows], ignore_index=True)
+        pd.concat([label_synonym_rows, fallback_rows, reference_rows], ignore_index=True)
         .drop_duplicates(subset=[id_column, attribute_column, value_column])
         .reset_index(drop=True)
     )

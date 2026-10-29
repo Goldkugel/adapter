@@ -3,9 +3,11 @@ Concrete adapter for SNOMED CT (RF2 release format).
 
 Reads the Concept, Description, TextDefinition, Relationship, and
 SimpleMap files named in the configuration, restricts every file to
-concepts that are currently active (per the Concept file), then
-converts each remaining file into EAV rows and concatenates them into
-self.data.
+concepts that are currently active (per the Concept file), and
+converts each remaining file into EAV rows. BaseAdapter.load() merges
+and cleans them and adds the configured prefix (by default
+"SNOMEDCT_US:", which matches the source abbreviation used by UMLS and
+which downstream mapping code relies on).
 """
 
 from __future__ import annotations
@@ -13,12 +15,10 @@ from __future__ import annotations
 import os
 
 from ..BaseAdapter      import BaseAdapter, standard_directory
-from ..BaseAdapterUtils import isFile, childrenClass
 from .SCTAdapterUtils   import (
     conceptPrefix, readConceptFile, getConcepts, rf2SourceId,
-    readRF2FileByPath, removeNotActiveConcepts, sctIdPrefix,
+    readRF2FileByPath, removeNotActiveConcepts,
 )
-from logger             import Logger
 import pandas           as pd
 
 config_keyword: str = "sct"
@@ -31,10 +31,14 @@ class SCTAdapter(BaseAdapter):
 
     Reads the Concept, Description, TextDefinition, Relationship, and
     Simple Map files named in the configuration, restricts every file
-    to concepts that are currently active (per the Concept file), then
-    converts each remaining file into EAV rows and concatenates them
-    into self.data.
+    to concepts that are currently active (per the Concept file), and
+    converts each remaining file into EAV rows.
     """
+
+    ontology_name  = "SNOMED CT"
+
+    # Used if the config section doesn't set `prefix`.
+    default_prefix = "SNOMEDCT_US:"
 
     def __init__(self, config: str = standard_directory):
         super().__init__(config, config_keyword)
@@ -59,144 +63,61 @@ class SCTAdapter(BaseAdapter):
             )
         return matches[0]
 
-    def load(self) -> int:
+    def _loadFrames(self) -> list[pd.DataFrame]:
         """
-        Load the configured SNOMED CT RF2 files and populate self.data
-        with all extracted EAV rows.
+        Read the configured SNOMED CT RF2 files and convert them to EAV
+        rows, restricted to active concepts.
 
         Returns
         -------
-        int
-            Number of EAV rows loaded into self.data.
+        list[pd.DataFrame]
+            One EAV DataFrame per recognised RF2 file (excluding the
+            Concept file, which only provides the active-concept filter).
         """
-        ret = 0
-        l = Logger()
+        # Separate the Concept file from the rest — it is read first to
+        # build the active-concept filter set, then excluded from the
+        # main EAV extraction loop. Raises if no (or more than one)
+        # Concept file is configured, since without it inactive concepts
+        # cannot be filtered out.
+        concept_file = self._findInputFile(conceptPrefix)
+        files = [f for f in self.config.input_files if f != concept_file]
 
-        if self.config.input_files:
+        concepts = getConcepts(
+            readConceptFile(
+                os.path.join(self.config.input_folder, concept_file),
+                self.config.encoding,
+                self.config.separator
+            ),
+            rf2SourceId
+        )
 
-            output_file = os.path.join(
-                self.config.output_folder,
-                self.config.output_file
+        frames = []
+
+        for input_file in files:
+            full_path = os.path.join(
+                self.config.input_folder,
+                input_file
             )
 
-            if isFile(output_file) and self.config.skip_if_present:
-                l.log("Skipping loading since output file is already present.")
-            else:
-                l.log(f"Loading SNOMED CT from "
-                      f"{len(self.config.input_files)} files...")
-
-                # Separate the Concept file from the rest — it is read
-                # first to build the active-concept filter set, then
-                # excluded from the main EAV extraction loop. Raises if
-                # no (or more than one) Concept file is configured, since
-                # without it inactive concepts cannot be filtered out.
-                concept_file = self._findInputFile(conceptPrefix)
-                files = [f for f in self.config.input_files if f != concept_file]
-
-                concepts = getConcepts(
-                    readConceptFile(
-                        os.path.join(self.config.input_folder, concept_file),
-                        self.config.encoding,
-                        self.config.separator
-                    ),
-                    rf2SourceId
+            frame = readRF2FileByPath(
+                full_path,
+                self.config.id_column,
+                self.config.attribute_column,
+                self.config.value_column,
+                self.config.additional_column,
+                self.config.encoding,
+                self.config.separator
+            )
+            if frame is not None:
+                frames.append(
+                    removeNotActiveConcepts(
+                        frame,
+                        self.config.id_column,
+                        concepts
+                    )
                 )
 
-                frames = []
-
-                for input_file in files:
-                    full_path = os.path.join(
-                        self.config.input_folder,
-                        input_file
-                    )
-
-                    frame = readRF2FileByPath(
-                        full_path,
-                        self.config.id_column,
-                        self.config.attribute_column,
-                        self.config.value_column,
-                        self.config.additional_column,
-                        self.config.encoding,
-                        self.config.separator
-                    )
-                    if frame is not None:
-                        frame = removeNotActiveConcepts(
-                            frame,
-                            self.config.id_column,
-                            concepts
-                        )
-                        if len(frame) > 0:
-                            frames.append(frame)
-
-                l.log("Loading completed.")
-
-                if frames:
-                    l.log("Merging data...")
-                    self.data = pd.concat(frames, ignore_index=True)
-                    ret = len(self.data)
-                    l.log(f"Found {ret} entities/rows in total.")
-
-                    # Remove rows without an identifier. Defensive: the
-                    # active-concept filter above already drops rows whose
-                    # ID is not an active SCTID, so normally nothing is
-                    # removed here.
-                    l.log("Removing rows without an ID...")
-                    self.data = self.data[
-                        (self.data[self.config.id_column].notna()) &
-                        (self.data[self.config.id_column] != "")
-                    ]
-                    l.log("Removing rows without an ID completed.")
-                    ret = len(self.data)
-                    l.log(f"Reduced to {ret} entities/rows in total.")
-
-                    # Remove rows without a value — empty terms or map
-                    # targets add no information and can cause issues
-                    # downstream (e.g. empty cells in the EAV CSV).
-                    l.log("Removing rows without values...")
-                    self.data = self.data[
-                        (self.data[self.config.value_column].notna()) &
-                        (self.data[self.config.value_column] != "")
-                    ]
-                    l.log("Removing rows without values completed.")
-                    ret = len(self.data)
-                    l.log(f"Reduced to {ret} entities/rows in total.")
-
-                    # Remove exact duplicates across (id, attribute, value) —
-                    # e.g. the same synonym text in two descriptions of a
-                    # concept, or the same map target in several refsets
-                    # (only the first row's additional info is kept).
-                    l.log("Removing duplicate rows...")
-                    self.data = self.data.drop_duplicates(subset=[
-                        self.config.id_column,
-                        self.config.attribute_column,
-                        self.config.value_column
-                    ]).reset_index(drop=True)
-                    l.log("Removing duplicate rows completed.")
-
-                    l.log("Adding prefix...")
-                    # Add the SCTID prefix to the id column
-                    self.data[self.config.id_column] = sctIdPrefix + self.data[self.config.id_column].astype(str)
-
-                    # Add the SCTID prefix to the value column of child rows
-                    child_mask = self.data[self.config.attribute_column] == childrenClass
-                    self.data.loc[child_mask, self.config.value_column] = (
-                        sctIdPrefix + self.data.loc[child_mask, self.config.value_column].astype(str)
-                    )
-                    l.log("Adding prefix completed.")
-
-                    ret = len(self.data)
-                    l.log(f"Reduced to {ret} entities/rows in total.")
-                else:
-                    l.log("No data found. Is it the correct file?")
-
-                l.log(f"Loading SNOMED CT from "
-                      f"{len(self.config.input_files)} files completed.")
-
-        else:
-            l.log("No input files found. Were they set in the "
-                  "configuration file?")
-
-        return ret
+        return frames
 
 
 if __name__ == "__main__":

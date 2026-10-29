@@ -57,6 +57,14 @@ class BaseAdapterConfig(BaseModel):
     # If True, load() does nothing when the output file already exists.
     skip_if_present: bool   = False
 
+    # Prefix put in front of every ID, and in front of the value of every
+    # child row (which is an ID as well), e.g. "SNOMEDCT_US:" turns
+    # "404684003" into "SNOMEDCT_US:404684003". Empty for sources whose
+    # IDs already carry a prefix, such as HPO ("HP:0000118"). If the
+    # config section doesn't set it, the adapter's own default applies
+    # (see BaseAdapter.default_prefix).
+    prefix: str             = ""
+
     # Field separator used when reading tabular input files (input), e.g.
     # "\t" for SNOMED CT RF2 and "|" for UMLS RRF. Unused by the HPO
     # adapter, which parses an OWL file.

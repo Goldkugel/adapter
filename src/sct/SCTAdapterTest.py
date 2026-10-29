@@ -284,6 +284,12 @@ class TestSCTAdapterLoadMerging:
         assert ret == 3
         assert len(adapter.data) == 3
         assert set(adapter.data[adapter.config.attribute_column]) == {"label", "child"}
+        # The default prefix is added to every ID and every child value.
+        assert set(adapter.data[adapter.config.id_column]) == {
+            "SNOMEDCT_US:100001", "SNOMEDCT_US:100002"
+        }
+        child = adapter.data[adapter.data[adapter.config.attribute_column] == "child"]
+        assert child[adapter.config.value_column].tolist() == ["SNOMEDCT_US:100003"]
 
     @patch("os.path.isfile", return_value=False)
     def test_load_raises_when_no_concept_file_is_configured(self, mock_is_file, tmp_path):
