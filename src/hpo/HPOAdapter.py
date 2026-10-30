@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import os
 
-from ..BaseAdapter      import BaseAdapter, standard_directory
+from ..BaseAdapter       import BaseAdapter, standard_directory
+from ..BaseAdapterConfig import BaseAdapterConfig
 from owlready2          import get_ontology
 from logger             import Logger
 from .HPOAdapterUtils   import (
@@ -39,7 +40,15 @@ class HPOAdapter(BaseAdapter):
     # Used if the config section doesn't set `prefix`.
     default_prefix = ""
 
-    def __init__(self, config: str = standard_directory):
+    def __init__(
+        self, config: str | os.PathLike | dict | BaseAdapterConfig = standard_directory
+    ):
+        """
+        Load and validate the `adapter.hpo` configuration.
+
+        `config` is a YAML path, a dict (the whole configuration or just the
+        `adapter.hpo` settings) or a BaseAdapterConfig; see BaseAdapter.
+        """
         super().__init__(config, config_keyword)
 
     def _loadFrames(self) -> list[pd.DataFrame]:

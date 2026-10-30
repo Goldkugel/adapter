@@ -4,6 +4,7 @@ import sys
 sys.dont_write_bytecode = True
 
 from .BaseAdapter           import BaseAdapter
+from .BaseAdapterConfig     import BaseAdapterConfig
 from .BaseAdapterUtils      import writeHugeCSV, writeCSV, labelClass, definitionClass, commentClass, referenceClass, childrenClass, synonymClass
 from .hpo.HPOAdapter        import HPOAdapter
 from .hpo.HPOAdapterUtils   import semanticClass, exactSynonymClass, relatedSynonymClass, broadSynonymClass, narrowSynonymClass, sourceType, expertSynonymType, laypersonSynonymType, abbreviationSynonymType, obsoleteSynonymType, pluralFormSynonymType, ukSpellingSynonymType, allelicRequirementSynonymType
@@ -14,6 +15,7 @@ from .umls.UMLSAdapterUtils import sourceAbbreviation
 
 __all__ = [
     "BaseAdapter",
+    "BaseAdapterConfig",
     "HPOAdapter",
     "writeHugeCSV",
     "writeCSV",

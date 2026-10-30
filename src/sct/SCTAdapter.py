@@ -14,7 +14,8 @@ from __future__ import annotations
 
 import os
 
-from ..BaseAdapter      import BaseAdapter, standard_directory
+from ..BaseAdapter       import BaseAdapter, standard_directory
+from ..BaseAdapterConfig import BaseAdapterConfig
 from .SCTAdapterUtils   import (
     conceptPrefix, readConceptFile, getConcepts, rf2SourceId,
     readRF2FileByPath, removeNotActiveConcepts,
@@ -40,7 +41,15 @@ class SCTAdapter(BaseAdapter):
     # Used if the config section doesn't set `prefix`.
     default_prefix = "SNOMEDCT_US:"
 
-    def __init__(self, config: str = standard_directory):
+    def __init__(
+        self, config: str | os.PathLike | dict | BaseAdapterConfig = standard_directory
+    ):
+        """
+        Load and validate the `adapter.sct` configuration.
+
+        `config` is a YAML path, a dict (the whole configuration or just the
+        `adapter.sct` settings) or a BaseAdapterConfig; see BaseAdapter.
+        """
         super().__init__(config, config_keyword)
 
     def _findInputFile(self, prefix: str) -> str:

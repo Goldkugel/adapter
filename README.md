@@ -182,6 +182,25 @@ adapter.load()
 adapter.to_csv()
 ```
 
+Instead of a YAML path, every adapter also accepts a dict or a `BaseAdapterConfig`:
+
+```python
+from adapter import BaseAdapterConfig, SCTAdapter
+
+# From a YAML file (a pathlib.Path works as well).
+adapter = SCTAdapter("./config/config.yaml")
+
+# From a dict: either the whole configuration (with an "adapter" key and
+# optionally a "logger" key) or just the settings of this adapter.
+adapter = SCTAdapter({"adapter": {"sct": {"input_files": [...]}}, "logger": {...}})
+adapter = SCTAdapter({"input_files": [...], "output_file": "sct.csv"})
+
+# From a BaseAdapterConfig (a copy is stored).
+adapter = SCTAdapter(BaseAdapterConfig(input_files=[...]))
+```
+
+If `prefix` is not set, the adapter's default prefix applies in all three cases (e.g. `SNOMEDCT_US:` for SNOMED CT).
+
 When working directly in a clone of this repository without installing it, import from `src` instead (`from src import HPOAdapter`). Paths in the configuration are relative to the working directory, so run from the repository root.
 
 The resulting CSV is written to the configured output directory.
@@ -211,6 +230,8 @@ The project uses the external `logger` package for consistent logging during:
 - CSV export
 - directory creation
 
+The logger is a process-wide singleton. If it has not been configured yet when an adapter is created, it is configured from the same source: the `logger` section of the YAML file, or the `logger` key of a full configuration dict. Otherwise (adapter settings only, or a `BaseAdapterConfig`) configure it first with `Logger("path/to/config.yaml")`, or it falls back to `./config/config.yaml`.
+
 ---
 
 ## Development
@@ -237,4 +258,4 @@ Place ontology input files inside the appropriate directory under `data/input/` 
 
 This project is licensed under the MIT License.
 
-See the `LICENSE` file for details.
+See the `LICENSE` file for details.
