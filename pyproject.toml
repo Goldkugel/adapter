@@ -25,3 +25,12 @@ packages = [
 
 [tool.setuptools.package-dir]
 "adapter" = "src"
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.pytest.ini_options]
+# The tests live next to the code as <Name>Test.py and are run from the
+# repository root ("pytest src/"), where ./config/config.yaml is found.
+testpaths    = ["src"]
+python_files = ["*Test.py"]

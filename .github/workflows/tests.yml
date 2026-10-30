@@ -1,0 +1,43 @@
+# Runs the adapter test suite on every push and pull request.
+#
+# The ontology input files (data/input/) are not checked in, so the
+# integration tests that need the real hp.owl are skipped; all other tests
+# use mocks or small in-memory data. Tests are run from the repository
+# root, because the tests and the logger read ./config/config.yaml and the
+# test files import the package as "src" (see [tool.pytest.ini_options] in
+# pyproject.toml).
+
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    # Pinned instead of ubuntu-latest, as in the logger repository, so the
+    # available Python versions do not change underneath the matrix.
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # Oldest supported (requires-python), the version used by the
+        # pipeline (3.11) and the newest version.
+        python-version: ["3.9", "3.11", "3.14"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[test]"
+
+      - name: Run tests
+        run: python -m pytest -v -rs

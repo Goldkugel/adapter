@@ -12,6 +12,7 @@ Contains four test classes:
 
 from __future__ import annotations
 
+import os
 import time
 import pytest
 
@@ -50,9 +51,14 @@ def loaded_adapter():
     mutate it.
 
     Requires owlready2 to be installed and the real ontology file to
-    exist at the path configured in ./config/config.yaml.
+    exist at the path configured in ./config/config.yaml. Without the
+    file (e.g. in CI, where data/input/ is not checked in), the tests
+    using this fixture are skipped.
     """
     a = HPOAdapter(config="./config/config.yaml")
+    path = os.path.join(a.config.input_folder, a.config.input_files[0])
+    if not os.path.isfile(path):
+        pytest.skip(f"HPO ontology file '{path}' not found.")
     row_count = a.load()
     return a, row_count
 

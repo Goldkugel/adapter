@@ -236,19 +236,21 @@ The logger is a process-wide singleton. If it has not been configured yet when a
 
 ## Development
 
-Install in editable mode:
+Install in editable mode, with the test dependencies:
 
 ```bash
-pip install -e .
+pip install -e ".[test]"
 ```
 
-Run the test suite with pytest from the repository root:
+Run the test suite with pytest from the repository root (the test files are named `*Test.py`; `pyproject.toml` configures pytest to collect them from `src/`):
 
 ```bash
-pytest src/
+pytest
 ```
 
-Most tests use mocks or small temporary files. The `TestHPOAdapterLoad` tests are integration tests and need the real `hp.owl` in `data/input/hpo/`.
+Most tests use mocks or small temporary files. The `TestHPOAdapterLoad` tests are integration tests and need the real `hp.owl` in `data/input/hpo/`; without it they are skipped.
+
+A GitHub Actions workflow (`.github/workflows/tests.yml`) runs the tests on Python 3.9, 3.11 and 3.14 on every push and pull request. The input files are not checked in, so the `hp.owl` integration tests are skipped there.
 
 Place ontology input files inside the appropriate directory under `data/input/` before running an adapter.
 
