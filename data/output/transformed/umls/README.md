@@ -14,7 +14,7 @@ are used.
 |---|---|---|---|
 | `label` | String with term type `PT` or `PN`; otherwise the string of the preferred atom (see below) | `source_abbreviation` (SAB) | `MRCONSO.RRF` |
 | `synonym` | String with term type `SY` or `AB` | `source_abbreviation` (SAB) | `MRCONSO.RRF` |
-| `reference` | Code of the atom in its source vocabulary (CODE) | `source_abbreviation` (SAB) | `MRCONSO.RRF` |
+| `reference` | Code of the atom in its source vocabulary (CODE); atoms with `CODE = NOCODE` produce none | `source_abbreviation` (SAB) | `MRCONSO.RRF` |
 | `definition` | Definition | `source_abbreviation` (SAB) | `MRDEF.RRF` |
 
 Strings with other term types (e.g. `FN`, `MH`, `ET`) produce no synonym

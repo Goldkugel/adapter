@@ -375,6 +375,21 @@ class TestUMLSAdapterUtilsParsing:
         # The FN string produces no synonym, only its code a reference.
         assert "Other TTY" not in frame["value"].tolist()
 
+    def test_nocode_atoms_produce_no_reference(self, tmp_path):
+        rows = [
+            ["C1", "ENG", "P", "L1", "PF", "S1", "Y", "A1", "", "", "", "MTH", "PN", "NOCODE", "Term", "0", "N", ""],
+            ["C1", "ENG", "S", "L2", "VO", "S2", "N", "A2", "", "", "", "MSH", "SY", "D001", "Synonym", "0", "N", ""],
+        ]
+        path = tmp_path / "MRCONSO.RRF"
+        path.write_text("".join("|".join(r) + "|\n" for r in rows), encoding="utf-8")
+
+        frame = readRRFFileByPath(str(path), "id", "attribute", "value", "additional", "utf-8", "|")
+
+        refs = frame[frame["attribute"] == referenceClass]
+        assert refs["value"].tolist() == ["D001"]
+        # The NOCODE atom still gives its label.
+        assert ("C1", labelClass, "Term") in [tuple(r) for r in frame[["id", "attribute", "value"]].values]
+
     def test_empty_rrf_file_gives_empty_frame(self, tmp_path):
         path = tmp_path / "MRCONSO.RRF"
         path.write_text("", encoding="utf-8")

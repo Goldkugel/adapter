@@ -43,6 +43,13 @@ preferredStringType : str = "PF"
 # Only English-language rows are extracted from MRCONSO.
 englishLanguage : str = "ENG"
 
+# --- Source code placeholder ---
+
+# Value of the CODE column for atoms whose source vocabulary has no code
+# for them (e.g. most MTH atoms). It is not a code, so it produces no
+# reference row.
+noCode : str = "NOCODE"
+
 # --- EAV additional-column key ---
 
 sourceAbbreviation : str = "source_abbreviation"
@@ -400,7 +407,8 @@ def getConcepts(
     without a PT/PN string gets one label from its preferred atom
     instead (see _getFallbackLabels). Each source code (CODE) produces
     one reference row carrying the source abbreviation (SAB) as
-    additional information.
+    additional information; empty codes and the NOCODE placeholder are
+    skipped.
     """
     l = Logger()
 
@@ -452,8 +460,13 @@ def getConcepts(
         additional_column,
     )
 
-    # Build reference rows for rows with a non-empty source code.
-    has_code = filtered[filtered[rrfSourceCode].notna() & (filtered[rrfSourceCode] != "")].copy()
+    # Build reference rows for rows with a real source code, i.e. not
+    # empty and not the NOCODE placeholder.
+    has_code = filtered[
+        filtered[rrfSourceCode].notna() &
+        (filtered[rrfSourceCode] != "") &
+        (filtered[rrfSourceCode] != noCode)
+    ].copy()
 
     reference_rows = pd.DataFrame({
         id_column        : has_code[rrfConceptUniqueIdentifier].values,
