@@ -387,22 +387,16 @@ def getDefinitions(
     })
 
 
-# Prefix -> reader and prefix -> transformer lookups, checked in
-# insertion order against a file's basename; the first matching prefix
-# wins. A more specific prefix must be listed before any shorter prefix
-# it could also satisfy; none of the current RF2 prefixes overlap, but
-# new file types should be added with that in mind.
-_rf2ReadersByPrefix = {
-    descriptionPrefix    : readDescriptionFile,
-    textDefinitionPrefix : readTextDefinitionFile,
-    relationshipPrefix   : readRelationshipFile,
-    simpleMapPrefix      : readSimpleMapFile,
-}
-_rf2TransformersByPrefix = {
-    descriptionPrefix    : getDescriptions,
-    textDefinitionPrefix : getDefinitions,
-    relationshipPrefix   : getChildren,
-    simpleMapPrefix      : getReferences,
+# Prefix -> (reader, transformer) lookup, checked in insertion order
+# against a file's basename; the first matching prefix wins. A more
+# specific prefix must be listed before any shorter prefix it could also
+# satisfy; none of the current RF2 prefixes overlap, but new file types
+# should be added with that in mind.
+_rf2HandlersByPrefix = {
+    descriptionPrefix    : (readDescriptionFile,    getDescriptions),
+    textDefinitionPrefix : (readTextDefinitionFile, getDefinitions),
+    relationshipPrefix   : (readRelationshipFile,   getChildren),
+    simpleMapPrefix      : (readSimpleMapFile,      getReferences),
 }
 
 
@@ -414,7 +408,7 @@ def readRF2FileByPath(
     additional_column: str,
     encoding         : str,
     separator        : str
-) -> pd.DataFrame:
+) -> pd.DataFrame | None:
     """
     Read a single RF2 file and convert it to EAV rows.
 
@@ -428,11 +422,10 @@ def readRF2FileByPath(
     l        = Logger()
     filename = os.path.basename(file_path)
 
-    for prefix, reader in _rf2ReadersByPrefix.items():
+    for prefix, (reader, transform) in _rf2HandlersByPrefix.items():
         if filename.startswith(prefix):
-            ret = reader(file_path, encoding, separator)
-            ret = _rf2TransformersByPrefix[prefix](
-                ret,
+            ret = transform(
+                reader(file_path, encoding, separator),
                 id_column,
                 attribute_column,
                 value_column,

@@ -69,6 +69,19 @@ _INIT_NS = {
 }
 
 
+def _activeFilter(variable: str) -> str:
+    """
+    SPARQL filters excluding a deprecated or obsolete ?variable. HPO marks
+    terms either with owl:deprecated true or with oboInOwl:is_obsolete,
+    whose value is compared as a string since it is not always typed.
+    """
+    return (
+        f"FILTER NOT EXISTS {{ ?{variable} owl:deprecated true }}\n"
+        f"FILTER NOT EXISTS {{ ?{variable} oboInOwl:is_obsolete ?obsolete . "
+        f"FILTER(str(?obsolete) = \"true\") }}\n"
+    )
+
+
 def getSynonymTypeFromString(string: str = "") -> str:
     """
     Determine the synonym *type* based on markers found in the source string.
@@ -174,7 +187,7 @@ def getSynonymsAndTypes(
     attribute_column : str = "",
     value_column     : str = "",
     additional_column: str = ""
-) -> pd.DataFrame:
+) -> pd.DataFrame | None:
     """
     Extract all synonyms for HPO concepts, including:
     - Direct synonym annotations
@@ -213,8 +226,7 @@ def getSynonymsAndTypes(
                 oboInOwl:hasRelatedSynonym
             }
             ?hpoID ?synclass ?synonym .
-            FILTER NOT EXISTS { ?hpoID owl:deprecated true }
-            FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete ?obsolete . FILTER(str(?obsolete) = "true") }
+        """ + _activeFilter("hpoID") + """
         }
         """
 
@@ -273,62 +285,45 @@ def getSynonymsAndTypes(
     return ret
 
 
-def getComments(
-    hpo              : Ontology = None,
-    id_column        : str = "",
-    attribute_column : str = "",
-    value_column     : str = "",
-    additional_column: str = ""
-) -> pd.DataFrame:
+def _extract(
+    hpo              : Ontology,
+    description      : str,
+    query            : str,
+    attribute        : str,
+    toIdAndValue,
+    id_column        : str,
+    attribute_column : str,
+    value_column     : str,
+    additional_column: str
+) -> pd.DataFrame | None:
     """
-    Extract rdfs:comment annotations for HPO concepts.
+    Run `query` on the RDF view of `hpo` and turn every result row into
+    one EAV row with the given attribute and an empty additional dict.
 
-    Includes:
-    - Direct comment annotations
-    - Axiom-based comment annotations
+    `toIdAndValue` maps a result row to its (id, value) pair. Returns None
+    if `hpo` is None. `description` names what is extracted in the log
+    messages (e.g. "labels").
     """
     ret = None
     l = Logger()
 
     if hpo is not None:
-        l.log("Get comments of the Human Phenotype Ontology (HPO)...")
+        l.log(f"Get {description} of the Human Phenotype Ontology (HPO)...")
 
         g = hpo.world.as_rdflib_graph()
-
-        # SPARQL query retrieves comments from both direct and axiom-based
-        # sources; DISTINCT collapses a comment found by both branches
-        query = """
-            SELECT DISTINCT ?hpoID ?comment WHERE {
-                FILTER NOT EXISTS { ?hpoID owl:deprecated true }
-                FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete ?obsolete . FILTER(str(?obsolete) = "true") }
-                {
-                    # Direct comment annotation
-                    ?hpoID rdfs:comment ?comment .
-                }
-                UNION
-                {
-                    # Axiom-based comment annotation
-                    ?axiom rdf:type owl:Axiom .
-                    ?axiom owl:annotatedSource ?hpoID .
-                    ?axiom owl:annotatedProperty rdfs:comment .
-                    ?axiom owl:annotatedTarget ?comment .
-                }
-            }
-        """
-
-        result = g.query(query, initNs=_INIT_NS)
 
         ids    = []
         values = []
 
-        for row in result:
-            ids.append(getConceptIDFromString(str(row.hpoID)))
-            values.append(row.comment)
+        for row in g.query(query, initNs=_INIT_NS):
+            concept_id, value = toIdAndValue(row)
+            ids.append(concept_id)
+            values.append(value)
 
         # Build a standardized DataFrame representation
         ret = pd.DataFrame({
             id_column        : ids,
-            attribute_column : [commentClass] * len(ids),
+            attribute_column : [attribute] * len(ids),
             value_column     : values,
             additional_column: [{} for _ in range(len(ids))]
         })
@@ -336,6 +331,46 @@ def getComments(
         l.log(f"{len(ret)} entities of the Human Phenotype Ontology (HPO) extracted.")
 
     return ret
+
+
+def getComments(
+    hpo              : Ontology = None,
+    id_column        : str = "",
+    attribute_column : str = "",
+    value_column     : str = "",
+    additional_column: str = ""
+) -> pd.DataFrame | None:
+    """
+    Extract rdfs:comment annotations for HPO concepts.
+
+    Includes:
+    - Direct comment annotations
+    - Axiom-based comment annotations
+    """
+    # SPARQL query retrieves comments from both direct and axiom-based
+    # sources; DISTINCT collapses a comment found by both branches
+    query = """
+        SELECT DISTINCT ?hpoID ?comment WHERE {
+    """ + _activeFilter("hpoID") + """
+            {
+                # Direct comment annotation
+                ?hpoID rdfs:comment ?comment .
+            }
+            UNION
+            {
+                # Axiom-based comment annotation
+                ?axiom rdf:type owl:Axiom .
+                ?axiom owl:annotatedSource ?hpoID .
+                ?axiom owl:annotatedProperty rdfs:comment .
+                ?axiom owl:annotatedTarget ?comment .
+            }
+        }
+    """
+    return _extract(
+        hpo, "comments", query, commentClass,
+        lambda row: (getConceptIDFromString(str(row.hpoID)), row.comment),
+        id_column, attribute_column, value_column, additional_column,
+    )
 
 
 def getDefinitions(
@@ -344,58 +379,33 @@ def getDefinitions(
     attribute_column : str = "",
     value_column     : str = "",
     additional_column: str = ""
-) -> pd.DataFrame:
+) -> pd.DataFrame | None:
     """
     Extract textual definitions for HPO concepts
     (obo:IAO_0000115 annotations).
     """
-    ret = None
-    l = Logger()
-
-    if hpo is not None:
-        l.log("Get definitions of the Human Phenotype Ontology (HPO)...")
-
-        g = hpo.world.as_rdflib_graph()
-
-        # Retrieve definitions from direct and axiom-based annotations;
-        # DISTINCT collapses a definition found by both branches
-        query = """
-            SELECT DISTINCT ?hpoID ?definition WHERE {
-                FILTER NOT EXISTS { ?hpoID owl:deprecated true }
-                FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete ?obsolete . FILTER(str(?obsolete) = "true") }
-                {
-                    ?hpoID obo:IAO_0000115 ?definition .
-                }
-                UNION
-                {
-                    ?axiom rdf:type owl:Axiom .
-                    ?axiom owl:annotatedProperty obo:IAO_0000115 .
-                    ?axiom owl:annotatedTarget ?definition .
-                    ?axiom owl:annotatedSource ?hpoID .
-                }
+    # Retrieve definitions from direct and axiom-based annotations;
+    # DISTINCT collapses a definition found by both branches
+    query = """
+        SELECT DISTINCT ?hpoID ?definition WHERE {
+    """ + _activeFilter("hpoID") + """
+            {
+                ?hpoID obo:IAO_0000115 ?definition .
             }
-        """
-
-        result = g.query(query, initNs=_INIT_NS)
-
-        ids    = []
-        values = []
-
-        for row in result:
-            ids.append(getConceptIDFromString(str(row.hpoID)))
-            values.append(row.definition)
-
-        # Build a standardized DataFrame representation
-        ret = pd.DataFrame({
-            id_column        : ids,
-            attribute_column : [definitionClass] * len(ids),
-            value_column     : values,
-            additional_column: [{} for _ in range(len(ids))]
-        })
-
-        l.log(f"{len(ret)} entities of the Human Phenotype Ontology (HPO) extracted.")
-
-    return ret
+            UNION
+            {
+                ?axiom rdf:type owl:Axiom .
+                ?axiom owl:annotatedProperty obo:IAO_0000115 .
+                ?axiom owl:annotatedTarget ?definition .
+                ?axiom owl:annotatedSource ?hpoID .
+            }
+        }
+    """
+    return _extract(
+        hpo, "definitions", query, definitionClass,
+        lambda row: (getConceptIDFromString(str(row.hpoID)), row.definition),
+        id_column, attribute_column, value_column, additional_column,
+    )
 
 
 def getLabels(
@@ -404,50 +414,25 @@ def getLabels(
     attribute_column : str = "",
     value_column     : str = "",
     additional_column: str = ""
-) -> pd.DataFrame:
+) -> pd.DataFrame | None:
     """
     Extract rdfs:label annotations for HPO concepts.
     """
-    ret = None
-    l = Logger()
-
-    if hpo is not None:
-        l.log("Get labels of the Human Phenotype Ontology (HPO)...")
-
-        g = hpo.world.as_rdflib_graph()
-
-        # Simple query for labels. This also matches labelled entities
-        # that are not HPO concepts. Those with a hash IRI (e.g.
-        # oboInOwl#hasDbXref) are removed by HPOAdapter._clean(); those
-        # with an OBO IRI (e.g. obo:IAO_0000115, "definition") are kept.
-        query = """
-            SELECT ?hpoID ?label WHERE {
-                FILTER NOT EXISTS { ?hpoID owl:deprecated true }
-                FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete ?obsolete . FILTER(str(?obsolete) = "true") }
-                ?hpoID rdfs:label ?label .
-            }
-        """
-
-        result = g.query(query, initNs=_INIT_NS)
-
-        ids    = []
-        values = []
-
-        for row in result:
-            ids.append(getConceptIDFromString(str(row.hpoID)))
-            values.append(row.label)
-
-        # Build a standardized DataFrame representation
-        ret = pd.DataFrame({
-            id_column        : ids,
-            attribute_column : [labelClass] * len(ids),
-            value_column     : values,
-            additional_column: [{} for _ in range(len(ids))]
-        })
-
-        l.log(f"{len(ret)} entities of the Human Phenotype Ontology (HPO) extracted.")
-
-    return ret
+    # Simple query for labels. This also matches labelled entities
+    # that are not HPO concepts. Those with a hash IRI (e.g.
+    # oboInOwl#hasDbXref) are removed by HPOAdapter._clean(); those
+    # with an OBO IRI (e.g. obo:IAO_0000115, "definition") are kept.
+    query = """
+        SELECT ?hpoID ?label WHERE {
+    """ + _activeFilter("hpoID") + """
+            ?hpoID rdfs:label ?label .
+        }
+    """
+    return _extract(
+        hpo, "labels", query, labelClass,
+        lambda row: (getConceptIDFromString(str(row.hpoID)), row.label),
+        id_column, attribute_column, value_column, additional_column,
+    )
 
 
 def getChildren(
@@ -456,7 +441,7 @@ def getChildren(
     attribute_column : str = "",
     value_column     : str = "",
     additional_column: str = ""
-) -> pd.DataFrame:
+) -> pd.DataFrame | None:
     """
     Extract parent–child (subClassOf) relationships from the ontology.
 
@@ -465,48 +450,23 @@ def getChildren(
     i.e. the parent is the id and the child the value (attribute
     childrenClass), as in the SNOMED CT adapter.
     """
-    ret = None
-    l = Logger()
-
-    if hpo is not None:
-        l.log("Get children of concepts of the Human Phenotype Ontology (HPO)...")
-
-        # Convert Owlready2 ontology into an RDFLib graph
-        g = hpo.world.as_rdflib_graph()
-
-        # Retrieve all subclass relationships. Superclasses that are
-        # anonymous restrictions (blank nodes) yield an empty parent ID
-        # and are removed by BaseAdapter.load() as rows without an ID.
-        query = """
-            SELECT ?child ?parent WHERE {
-                FILTER NOT EXISTS { ?child owl:deprecated true }
-                FILTER NOT EXISTS { ?child oboInOwl:is_obsolete ?obsolete . FILTER(str(?obsolete) = "true") }
-                FILTER NOT EXISTS { ?parent owl:deprecated true }
-                FILTER NOT EXISTS { ?parent oboInOwl:is_obsolete ?obsolete . FILTER(str(?obsolete) = "true") }
-                ?child rdfs:subClassOf ?parent .
-            }
-        """
-
-        result = g.query(query, initNs=_INIT_NS)
-
-        ids    = []
-        values = []
-
-        for row in result:
-            ids.append(getConceptIDFromString(str(row.parent)))
-            values.append(getConceptIDFromString(str(row.child)))
-
-        # Build a standardized DataFrame representation
-        ret = pd.DataFrame({
-            id_column        : ids,
-            attribute_column : [childrenClass] * len(ids),
-            value_column     : values,
-            additional_column: [{} for _ in range(len(ids))]
-        })
-
-        l.log(f"{len(ret)} entities of the Human Phenotype Ontology (HPO) extracted.")
-
-    return ret
+    # Retrieve all subclass relationships. Superclasses that are
+    # anonymous restrictions (blank nodes) yield an empty parent ID
+    # and are removed by BaseAdapter.load() as rows without an ID.
+    query = """
+        SELECT ?child ?parent WHERE {
+    """ + _activeFilter("child") + _activeFilter("parent") + """
+            ?child rdfs:subClassOf ?parent .
+        }
+    """
+    return _extract(
+        hpo, "children of concepts", query, childrenClass,
+        lambda row: (
+            getConceptIDFromString(str(row.parent)),
+            getConceptIDFromString(str(row.child)),
+        ),
+        id_column, attribute_column, value_column, additional_column,
+    )
 
 
 def getReferences(
@@ -515,7 +475,7 @@ def getReferences(
     attribute_column : str = "",
     value_column     : str = "",
     additional_column: str = ""
-) -> pd.DataFrame:
+) -> pd.DataFrame | None:
     """
     Extract database cross-references (DbXrefs) for HPO concepts.
 
@@ -523,43 +483,18 @@ def getReferences(
     DbXrefs on owl:Axiom nodes annotate other annotations (e.g. the
     sources of a definition or synonym) and are not concept references.
     """
-    ret = None
-    l = Logger()
-
-    if hpo is not None:
-        l.log("Get references of the Human Phenotype Ontology (HPO)...")
-
-        g = hpo.world.as_rdflib_graph()
-
-        # Retrieve cross-references annotated directly on the concept
-        # (isIRI excludes the blank owl:Axiom nodes, which carry
-        # hasDbXref too)
-        query = """
-            SELECT DISTINCT ?hpoID ?xref WHERE {
-                FILTER(isIRI(?hpoID))
-                FILTER NOT EXISTS { ?hpoID owl:deprecated true }
-                FILTER NOT EXISTS { ?hpoID oboInOwl:is_obsolete ?obsolete . FILTER(str(?obsolete) = "true") }
-                ?hpoID oboInOwl:hasDbXref ?xref .
-            }
-        """
-
-        result = g.query(query, initNs=_INIT_NS)
-
-        ids    = []
-        values = []
-
-        for row in result:
-            ids.append(getConceptIDFromString(str(row.hpoID)))
-            values.append(row.xref)
-
-        # Build a standardized DataFrame representation
-        ret = pd.DataFrame({
-            id_column        : ids,
-            attribute_column : [referenceClass] * len(ids),
-            value_column     : values,
-            additional_column: [{} for _ in range(len(ids))]
-        })
-
-        l.log(f"{len(ret)} entities of the Human Phenotype Ontology (HPO) extracted.")
-
-    return ret
+    # Retrieve cross-references annotated directly on the concept
+    # (isIRI excludes the blank owl:Axiom nodes, which carry
+    # hasDbXref too)
+    query = """
+        SELECT DISTINCT ?hpoID ?xref WHERE {
+            FILTER(isIRI(?hpoID))
+    """ + _activeFilter("hpoID") + """
+            ?hpoID oboInOwl:hasDbXref ?xref .
+        }
+    """
+    return _extract(
+        hpo, "references", query, referenceClass,
+        lambda row: (getConceptIDFromString(str(row.hpoID)), row.xref),
+        id_column, attribute_column, value_column, additional_column,
+    )

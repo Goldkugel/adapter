@@ -16,11 +16,11 @@ import os
 
 from ..BaseAdapter       import BaseAdapter, standard_directory
 from ..BaseAdapterConfig import BaseAdapterConfig
-from .SCTAdapterUtils   import (
+from .SCTAdapterUtils    import (
     conceptPrefix, readConceptFile, getConcepts, rf2SourceId,
     readRF2FileByPath, removeNotActiveConcepts,
 )
-import pandas           as pd
+import pandas            as pd
 
 config_keyword: str = "sct"
 

@@ -17,11 +17,10 @@ from __future__ import annotations
 
 import os
 
-from unittest.mock      import MagicMock, patch, call
+from unittest.mock      import MagicMock, patch
 from .SCTAdapter        import SCTAdapter
 from .SCTAdapterUtils   import (
     conceptPrefix, rf2SourceId,
-    descriptionPrefix, relationshipPrefix,
     readConceptFile, getConcepts, getChildren, readRF2FileByPath,
     removeNotActiveConcepts,
     fsnTypeId, synonymTypeId, definitionTypeId, isARelationshipTypeId,

@@ -13,15 +13,15 @@ import os
 
 from ..BaseAdapter       import BaseAdapter, standard_directory
 from ..BaseAdapterConfig import BaseAdapterConfig
-from owlready2          import get_ontology
-from logger             import Logger
-from .HPOAdapterUtils   import (
+from owlready2           import get_ontology
+from logger              import Logger
+from .HPOAdapterUtils    import (
     getLabels, getDefinitions, getComments,
     getChildren, getReferences, getSynonymsAndTypes,
 )
-import pandas as pd
+import pandas            as pd
 
-config_keyword = "hpo"
+config_keyword: str = "hpo"
 
 
 class HPOAdapter(BaseAdapter):

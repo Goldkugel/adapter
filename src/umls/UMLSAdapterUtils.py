@@ -424,8 +424,9 @@ def getConcepts(
     # Build label/synonym rows for rows with a known TTY and a non-empty
     # string; the same mask is applied to the rows and to their attribute
     # names, so the two stay aligned.
-    known      = filtered[attribute_series.notna() & filtered[rrfString].notna() & (filtered[rrfString] != "")].copy()
-    attributes = attribute_series[attribute_series.notna() & filtered[rrfString].notna() & (filtered[rrfString] != "")]
+    has_term   = attribute_series.notna() & filtered[rrfString].notna() & (filtered[rrfString] != "")
+    known      = filtered[has_term].copy()
+    attributes = attribute_series[has_term]
 
     label_synonym_rows = pd.DataFrame({
         id_column        : known[rrfConceptUniqueIdentifier].values,
@@ -524,18 +525,14 @@ def getDefinitions(
     return result
 
 
-# Prefix -> reader and prefix -> transformer lookups, checked in
-# insertion order against a file's basename; the first matching prefix
-# wins. A more specific prefix must be listed before any shorter
-# prefix it could also satisfy; none of the current RRF prefixes overlap,
-# but new file types should be added with that in mind.
-_rrfReadersByPrefix = {
-    conceptPrefix   : readMRCONSOFile,
-    definitionPrefix: readMRDEFFile,
-}
-_rrfTransformersByPrefix = {
-    conceptPrefix   : getConcepts,
-    definitionPrefix: getDefinitions,
+# Prefix -> (reader, transformer) lookup, checked in insertion order
+# against a file's basename; the first matching prefix wins. A more
+# specific prefix must be listed before any shorter prefix it could also
+# satisfy; none of the current RRF prefixes overlap, but new file types
+# should be added with that in mind.
+_rrfHandlersByPrefix = {
+    conceptPrefix    : (readMRCONSOFile, getConcepts),
+    definitionPrefix : (readMRDEFFile,   getDefinitions),
 }
 
 
@@ -547,7 +544,7 @@ def readRRFFileByPath(
     additional_column: str,
     encoding         : str,
     separator        : str
-) -> pd.DataFrame:
+) -> pd.DataFrame | None:
     """
     Read a single RRF file and convert it to EAV rows.
 
@@ -561,11 +558,10 @@ def readRRFFileByPath(
     l        = Logger()
     filename = os.path.basename(file_path)
 
-    for prefix, reader in _rrfReadersByPrefix.items():
+    for prefix, (reader, transform) in _rrfHandlersByPrefix.items():
         if filename.startswith(prefix):
-            ret = reader(file_path, encoding, separator)
-            ret = _rrfTransformersByPrefix[prefix](
-                ret,
+            ret = transform(
+                reader(file_path, encoding, separator),
                 id_column,
                 attribute_column,
                 value_column,

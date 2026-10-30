@@ -14,8 +14,8 @@ import os
 
 from ..BaseAdapter       import BaseAdapter, standard_directory
 from ..BaseAdapterConfig import BaseAdapterConfig
-from .UMLSAdapterUtils  import readRRFFileByPath
-import pandas           as pd
+from .UMLSAdapterUtils   import readRRFFileByPath
+import pandas            as pd
 
 config_keyword: str = "umls"
 
