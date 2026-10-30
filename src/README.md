@@ -13,9 +13,7 @@ src/
 ├── __init__.py            Public API (adapters, BaseAdapterConfig, CSV writers and attribute-name constants)
 ├── BaseAdapter.py         Abstract base class: config loading, shared load() steps and CSV export
 ├── BaseAdapterConfig.py   Pydantic model of one adapter config section
-├── BaseAdapterUtils.py    EAV attribute names, filesystem and CSV helpers
-├── BaseAdapterTest.py     pytest tests for BaseAdapter
-├── BaseAdapterUtilsTest.py  pytest tests for the filesystem and CSV helpers
+├── BaseAdapterUtils.py    EAV attribute names, filesystem, CSV and shared reader helpers
 ├── hpo/                   Human Phenotype Ontology (OWL)
 ├── sct/                   SNOMED CT (RF2)
 └── umls/                  UMLS Metathesaurus (RRF)
@@ -25,9 +23,12 @@ Each ontology subpackage follows the same pattern:
 
 | File | Content |
 |---|---|
-| `<Name>Adapter.py` | Concrete `BaseAdapter` subclass; its `_loadFrames()` reads the input files, and it sets the ontology name and default prefix |
+| `<Name>Adapter.py` | Concrete `BaseAdapter` subclass; its `_loadFrames()` reads the input files, and it sets the ontology name, its configuration section and default prefix |
 | `<Name>AdapterUtils.py` | Source-specific constants, file readers and EAV extractors/transformers |
-| `<Name>AdapterTest.py` | pytest tests for the adapter and its utilities |
+
+The tests are not part of the package; they are in `tests/` at the
+repository root, one `<Name>AdapterTest.py` per adapter plus
+`BaseAdapterTest.py` and `BaseAdapterUtilsTest.py`.
 
 ---
 
@@ -101,8 +102,9 @@ configuration and the `src.` patch targets in the tests resolve:
 pytest
 ```
 
-(`pyproject.toml` points pytest at `src/` and collects the `*Test.py`
-files.) Most tests use mocks, small temporary RF2/RRF files or an
+(`pyproject.toml` points pytest at `tests/`, collects the `*Test.py`
+files and puts the repository root on the import path, so the tests can
+import the package as `src`.) Most tests use mocks, small temporary RF2/RRF files or an
 in-memory RDF graph; `BaseAdapterTest.py` uses a minimal dummy adapter.
 `TestHPOAdapterLoad` needs the real `data/input/hpo/hp.owl` and is skipped
 without it.

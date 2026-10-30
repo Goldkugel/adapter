@@ -18,10 +18,10 @@ import os
 import time
 import pytest
 
-from unittest.mock      import MagicMock, patch
-from rdflib             import Graph
-from .HPOAdapter        import HPOAdapter
-from .HPOAdapterUtils   import (
+from unittest.mock           import MagicMock, patch
+from rdflib                  import Graph
+from src.hpo.HPOAdapter      import HPOAdapter
+from src.hpo.HPOAdapterUtils import (
     getSynonymsAndTypes, getReferences, getComments, getChildren,
     getConceptIDFromString, getSynonymClassFromString, getSynonymTypeFromString,
     semanticClass, sourceType, exactSynonymClass, relatedSynonymClass,
@@ -31,7 +31,7 @@ from .HPOAdapterUtils   import (
     ukSpellingSynonymType, allelicRequirementSynonymType,
 )
 import pandas as pd
-from ..BaseAdapterUtils import (
+from src.BaseAdapterUtils    import (
     labelClass, definitionClass, commentClass,
     referenceClass, childrenClass, synonymClass,
 )
@@ -419,7 +419,3 @@ class TestHPOAdapterUtilsHelpers:
         })
         assert adapter._clean(data)["id"].tolist() == ["HP:1"]
 
-
-if __name__ == "__main__":
-    import sys
-    sys.exit(pytest.main([__file__, "-v"]))

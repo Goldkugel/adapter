@@ -11,8 +11,7 @@ from __future__ import annotations
 
 import os
 
-from ..BaseAdapter       import BaseAdapter, standard_directory
-from ..BaseAdapterConfig import BaseAdapterConfig
+from ..BaseAdapter       import BaseAdapter
 from owlready2           import get_ontology
 from logger              import Logger
 from .HPOAdapterUtils    import (
@@ -20,8 +19,6 @@ from .HPOAdapterUtils    import (
     getChildren, getReferences, getSynonymsAndTypes,
 )
 import pandas            as pd
-
-config_keyword: str = "hpo"
 
 
 class HPOAdapter(BaseAdapter):
@@ -31,26 +28,17 @@ class HPOAdapter(BaseAdapter):
 
     Loads the OWL file specified in the adapter configuration (the first
     entry of `input_files`) via owlready2, then runs each HPOAdapterUtils
-    extractor (labels,
-    definitions, comments, children, references, synonyms) against
-    it.
+    extractor (labels, definitions, comments, children, references,
+    synonyms) against it.
     """
 
     ontology_name  = "the Human Phenotype Ontology (HPO)"
 
+    # Settings are read from the `adapter.hpo` section.
+    config_section = "hpo"
+
     # Used if the config section doesn't set `prefix`.
     default_prefix = ""
-
-    def __init__(
-        self, config: str | os.PathLike | dict | BaseAdapterConfig = standard_directory
-    ):
-        """
-        Load and validate the `adapter.hpo` configuration.
-
-        `config` is a YAML path, a dict (the whole configuration or just the
-        `adapter.hpo` settings) or a BaseAdapterConfig; see BaseAdapter.
-        """
-        super().__init__(config, config_keyword)
 
     def _loadFrames(self) -> list[pd.DataFrame]:
         """

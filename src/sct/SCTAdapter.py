@@ -14,15 +14,12 @@ from __future__ import annotations
 
 import os
 
-from ..BaseAdapter       import BaseAdapter, standard_directory
-from ..BaseAdapterConfig import BaseAdapterConfig
+from ..BaseAdapter       import BaseAdapter
 from .SCTAdapterUtils    import (
     conceptPrefix, readConceptFile, getConcepts, rf2SourceId,
     readRF2FileByPath, removeNotActiveConcepts,
 )
 import pandas            as pd
-
-config_keyword: str = "sct"
 
 
 class SCTAdapter(BaseAdapter):
@@ -38,19 +35,11 @@ class SCTAdapter(BaseAdapter):
 
     ontology_name  = "SNOMED CT"
 
+    # Settings are read from the `adapter.sct` section.
+    config_section = "sct"
+
     # Used if the config section doesn't set `prefix`.
     default_prefix = "SNOMEDCT_US:"
-
-    def __init__(
-        self, config: str | os.PathLike | dict | BaseAdapterConfig = standard_directory
-    ):
-        """
-        Load and validate the `adapter.sct` configuration.
-
-        `config` is a YAML path, a dict (the whole configuration or just the
-        `adapter.sct` settings) or a BaseAdapterConfig; see BaseAdapter.
-        """
-        super().__init__(config, config_keyword)
 
     def _findInputFile(self, prefix: str) -> str:
         """

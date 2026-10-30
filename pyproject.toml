@@ -27,10 +27,14 @@ packages = [
 "adapter" = "src"
 
 [project.optional-dependencies]
-test = ["pytest"]
+# pytest 7 is the first version with the `pythonpath` setting below.
+test = ["pytest>=7"]
 
 [tool.pytest.ini_options]
-# The tests live next to the code as <Name>Test.py and are run from the
+# The tests live in tests/ as <Name>Test.py and are run from the
 # repository root (plain "pytest"), where ./config/config.yaml is found.
-testpaths    = ["src"]
+# They import the package as "src", so the repository root is put on
+# sys.path; tests/ is not part of the installed package.
+testpaths    = ["tests"]
 python_files = ["*Test.py"]
+pythonpath   = ["."]

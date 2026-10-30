@@ -17,8 +17,8 @@ import os
 import pytest
 import pandas as pd
 
-from unittest.mock      import patch
-from .BaseAdapterUtils  import (
+from unittest.mock        import patch
+from src.BaseAdapterUtils import (
     isFile, isFolder, createFolder, writeCSV, writeHugeCSV,
     labelClass, synonymClass,
 )
@@ -159,7 +159,3 @@ class TestWriteHugeCSV:
         assert writeHugeCSV(make_frame(), "") == 0
         assert list(tmp_path.iterdir()) == []
 
-
-if __name__ == "__main__":
-    import sys
-    sys.exit(pytest.main([__file__, "-v"]))

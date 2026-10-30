@@ -17,16 +17,16 @@ from __future__ import annotations
 
 import os
 
-from unittest.mock      import MagicMock, patch
-from .SCTAdapter        import SCTAdapter
-from .SCTAdapterUtils   import (
+from unittest.mock           import MagicMock, patch
+from src.sct.SCTAdapter      import SCTAdapter
+from src.sct.SCTAdapterUtils import (
     conceptPrefix, rf2SourceId,
     readConceptFile, getConcepts, getChildren, readRF2FileByPath,
     removeNotActiveConcepts,
     fsnTypeId, synonymTypeId, definitionTypeId, isARelationshipTypeId,
     referenceOntology,
 )
-from ..BaseAdapterUtils import (
+from src.BaseAdapterUtils    import (
     childrenClass, labelClass, synonymClass, definitionClass, referenceClass,
 )
 import pandas           as pd
@@ -461,9 +461,3 @@ class TestSCTAdapterUtilsTransformers:
     def test_unknown_file_name_returns_none(self, tmp_path):
         path = write_rf2(tmp_path / "sct2_Identifier_Full_INT_20260701.txt", ["id"], [["1"]])
         assert readRF2FileByPath(path, "id", "attribute", "value", "additional", "utf-8", "\t") is None
-
-
-if __name__ == "__main__":
-    import sys
-    import pytest
-    sys.exit(pytest.main([__file__, "-v"]))

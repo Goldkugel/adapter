@@ -48,10 +48,15 @@ class BaseAdapter(ABC):
     # Prefix used if the config section doesn't set `prefix`.
     default_prefix: str = ""
 
+    # Key of the adapter's subsection within the "adapter" section (e.g.
+    # "hpo"), used if no adapter_name is passed. Empty means the
+    # "adapter" section itself.
+    config_section: str = ""
+
     def __init__(
         self,
         config: str | os.PathLike | dict | BaseAdapterConfig = standard_directory,
-        adapter_name: str = "",
+        adapter_name: str | None = None,
     ):
         """
         Load and validate the adapter configuration.
@@ -74,8 +79,9 @@ class BaseAdapter(ABC):
             "logger" key of a full configuration dict.
         adapter_name : str, optional
             Key within the "adapter" section of a configuration file or full
-            configuration dict to load. If empty, the "adapter" section
-            itself is used directly.
+            configuration dict to load. Defaults to the class's
+            `config_section` (e.g. "hpo" for HPOAdapter). If empty, the
+            "adapter" section itself is used directly.
 
         Raises
         ------
@@ -89,6 +95,9 @@ class BaseAdapter(ABC):
         # load() finds data; self.config is set right below.
         self.config: BaseAdapterConfig = None
         self.data: pd.DataFrame        = None
+
+        if adapter_name is None:
+            adapter_name = self.config_section
 
         # Raises before anything else happens if the configuration is
         # missing or invalid, so no adapter exists with a broken config.

@@ -20,11 +20,11 @@ import pytest
 import pandas as pd
 import yaml
 
-from unittest.mock     import patch
-from logger            import Logger, LoggerConfig
-from .BaseAdapter      import BaseAdapter
-from .BaseAdapterConfig import BaseAdapterConfig
-from .BaseAdapterUtils import labelClass, childrenClass
+from unittest.mock         import patch
+from logger                import Logger, LoggerConfig
+from src.BaseAdapter       import BaseAdapter
+from src.BaseAdapterConfig import BaseAdapterConfig
+from src.BaseAdapterUtils  import labelClass, childrenClass
 
 
 class DummyAdapter(BaseAdapter):
@@ -259,7 +259,3 @@ class TestBaseAdapterToCSV:
         back = pd.read_csv(tmp_path / "d.csv", sep=";", dtype=str)
         assert back[["id", "value"]].values.tolist() == [["DUMMY:1", "A"], ["DUMMY:1", "DUMMY:2"]]
 
-
-if __name__ == "__main__":
-    import sys
-    sys.exit(pytest.main([__file__, "-v"]))

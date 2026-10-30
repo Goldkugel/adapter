@@ -10,10 +10,12 @@ those files are skipped if configured.
 
 from __future__ import annotations
 
-from ..BaseAdapterUtils import labelClass, definitionClass, referenceClass, synonymClass
+from ..BaseAdapterUtils import (
+    labelClass, definitionClass, referenceClass, synonymClass,
+    additionalFrom, readFileByPrefix,
+)
 from logger             import Logger
 import pandas           as pd
-import os
 import csv
 
 # --- Filter value constants ---
@@ -382,9 +384,7 @@ def _getFallbackLabels(
         id_column        : best[rrfConceptUniqueIdentifier].values,
         attribute_column : [labelClass] * len(best),
         value_column     : best[rrfString].values,
-        additional_column: best[rrfSourceAbbreviation].map(
-            lambda v: {sourceAbbreviation: v}
-        ).values,
+        additional_column: additionalFrom(best[rrfSourceAbbreviation], sourceAbbreviation),
     })
 
 
@@ -440,9 +440,7 @@ def getConcepts(
         id_column        : known[rrfConceptUniqueIdentifier].values,
         attribute_column : attributes.values,
         value_column     : known[rrfString].values,
-        additional_column: known[rrfSourceAbbreviation].map(
-            lambda v: {sourceAbbreviation: v}
-        ).values,
+        additional_column: additionalFrom(known[rrfSourceAbbreviation], sourceAbbreviation),
     })
 
     # Give every concept without a PT/PN label one label from its
@@ -472,9 +470,7 @@ def getConcepts(
         id_column        : has_code[rrfConceptUniqueIdentifier].values,
         attribute_column : [referenceClass] * len(has_code),
         value_column     : has_code[rrfSourceCode].values,
-        additional_column: has_code[rrfSourceAbbreviation].map(
-            lambda v: {sourceAbbreviation: v}
-        ).values,
+        additional_column: additionalFrom(has_code[rrfSourceAbbreviation], sourceAbbreviation),
     })
 
     l.log(f"Transforming {len(filtered)} rows into EAV schema completed.")
@@ -520,9 +516,7 @@ def getDefinitions(
         id_column        : filtered[rrfConceptUniqueIdentifier].values,
         attribute_column : [definitionClass] * len(filtered),
         value_column     : filtered[rrfDefinition].values,
-        additional_column: filtered[rrfSourceAbbreviation].map(
-            lambda v: {sourceAbbreviation: v}
-        ).values,
+        additional_column: additionalFrom(filtered[rrfSourceAbbreviation], sourceAbbreviation),
     })
 
     l.log(f"Transforming {len(filtered)} rows into EAV schema completed.")
@@ -567,22 +561,8 @@ def readRRFFileByPath(
     directory containing it. Returns None and logs a warning if the
     filename doesn't start with any of the known RRF prefixes.
     """
-    ret      = None
-    l        = Logger()
-    filename = os.path.basename(file_path)
-
-    for prefix, (reader, transform) in _rrfHandlersByPrefix.items():
-        if filename.startswith(prefix):
-            ret = transform(
-                reader(file_path, encoding, separator),
-                id_column,
-                attribute_column,
-                value_column,
-                additional_column
-            )
-            break
-
-    if ret is None:
-        l.log(f"'{filename}' doesn't match any known RRF file prefix.")
-
-    return ret
+    return readFileByPrefix(
+        file_path, _rrfHandlersByPrefix, "RRF",
+        id_column, attribute_column, value_column, additional_column,
+        encoding, separator,
+    )

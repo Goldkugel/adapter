@@ -2,9 +2,10 @@
 Shared utilities for all ontology adapters.
 
 Provides EAV attribute-name constants (labelClass, synonymClass, etc.),
-filesystem helpers (isFile, isFolder, createFolder), and CSV writing
-helpers (writeCSV, writeHugeCSV) used by BaseAdapter and its concrete
-subclasses.
+filesystem helpers (isFile, isFolder, createFolder), CSV writing helpers
+(writeCSV, writeHugeCSV), and helpers shared by the source-specific
+readers (additionalFrom, readFileByPrefix) used by BaseAdapter and its
+concrete subclasses.
 """
 
 from __future__ import annotations
@@ -24,6 +25,56 @@ commentClass    : str = "comment"
 referenceClass  : str = "reference"
 childrenClass   : str = "child"
 synonymClass    : str = "synonym"
+
+def additionalFrom(values: pd.Series, key: str):
+    """
+    Build the additional column from one source column: one new dict
+    {key: value} per row (a new dict each, so rows never share one).
+    """
+    return values.map(lambda v: {key: v}).values
+
+
+def readFileByPrefix(
+    file_path        : str,
+    handlers         : dict,
+    kind             : str,
+    id_column        : str,
+    attribute_column : str,
+    value_column     : str,
+    additional_column: str,
+    encoding         : str,
+    separator        : str
+) -> pd.DataFrame | None:
+    """
+    Read a single source file and convert it to EAV rows.
+
+    `handlers` maps a filename prefix to a (reader, transformer) pair; the
+    pair of the first prefix the file's own name starts with is used, so
+    file_path must point to the file itself, not to its directory. The
+    reader gets (file_path, encoding, separator), the transformer the
+    raw frame and the four EAV column names. Returns None and logs a
+    message naming `kind` (e.g. "RF2") if no prefix matches.
+    """
+    ret      = None
+    l        = Logger()
+    filename = os.path.basename(file_path)
+
+    for prefix, (reader, transform) in handlers.items():
+        if filename.startswith(prefix):
+            ret = transform(
+                reader(file_path, encoding, separator),
+                id_column,
+                attribute_column,
+                value_column,
+                additional_column
+            )
+            break
+
+    if ret is None:
+        l.log(f"'{filename}' doesn't match any known {kind} file prefix.")
+
+    return ret
+
 
 def isFile(path: str = "") -> bool:
     """

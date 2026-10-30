@@ -2,7 +2,8 @@
 
 This directory contains all input, output, and log data used by the adapter.
 None of the data files in this directory are tracked by version control —
-only the folder structure and its README files are committed.
+only the README files (and with them the `output/transformed/` folders) are
+committed.
 
 ---
 
@@ -26,9 +27,11 @@ data/
 
 ## `input/`
 
-Contains the raw ontology source files for each adapter. Files must be placed
-in the correct subdirectory before running an adapter, and their names must
-match the `input_files` list in `config/config.yaml`.
+Contains the raw ontology source files for each adapter. These folders are
+not part of the repository (the files are licensed or large), so create them
+first. Files must be placed in the correct subdirectory before running an
+adapter, and their names must match the `input_files` list in
+`config/config.yaml`.
 
 ### `input/hpo/`
 

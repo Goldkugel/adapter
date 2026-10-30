@@ -45,20 +45,21 @@ adapter/
 │   ├── BaseAdapter.py
 │   ├── BaseAdapterConfig.py
 │   ├── BaseAdapterUtils.py
-│   ├── BaseAdapterTest.py
-│   ├── BaseAdapterUtilsTest.py
 │   ├── hpo/
 │   │   ├── HPOAdapter.py
-│   │   ├── HPOAdapterUtils.py
-│   │   └── HPOAdapterTest.py
+│   │   └── HPOAdapterUtils.py
 │   ├── sct/
 │   │   ├── SCTAdapter.py
-│   │   ├── SCTAdapterUtils.py
-│   │   └── SCTAdapterTest.py
+│   │   └── SCTAdapterUtils.py
 │   └── umls/
 │       ├── UMLSAdapter.py
-│       ├── UMLSAdapterUtils.py
-│       └── UMLSAdapterTest.py
+│       └── UMLSAdapterUtils.py
+├── tests/
+│   ├── BaseAdapterTest.py
+│   ├── BaseAdapterUtilsTest.py
+│   ├── HPOAdapterTest.py
+│   ├── SCTAdapterTest.py
+│   └── UMLSAdapterTest.py
 └── pyproject.toml
 ```
 
@@ -214,7 +215,7 @@ The resulting CSV is written to the configured output directory.
 
 To support another ontology:
 
-1. Subclass `BaseAdapter`, set `ontology_name` (used in log messages) and `default_prefix`, and implement `_loadFrames()` to return the EAV rows read from the input files. The shared `load()` merges and cleans them and adds the prefix; override `_clean()` for source-specific cleaning.
+1. Subclass `BaseAdapter`, set `ontology_name` (used in log messages), `config_section` (the key under `adapter` in the configuration, e.g. `hpo`) and `default_prefix`, and implement `_loadFrames()` to return the EAV rows read from the input files. The shared `load()` merges and cleans them and adds the prefix; override `_clean()` for source-specific cleaning.
 2. Use the shared EAV attribute-name constants from `BaseAdapterUtils` (e.g. `labelClass`, `synonymClass`) to keep attribute names consistent across adapters.
 3. Add a configuration section for the new adapter to `config/config.yaml`, following the same structure as the existing adapter sections.
 4. Export the new adapter class from `src/__init__.py`.
@@ -245,7 +246,7 @@ Install in editable mode, with the test dependencies:
 pip install -e ".[test]"
 ```
 
-Run the test suite with pytest from the repository root (the test files are named `*Test.py`; `pyproject.toml` configures pytest to collect them from `src/`):
+Run the test suite with pytest from the repository root (the test files in `tests/` are named `*Test.py`; `pyproject.toml` configures pytest to collect them and to import the package as `src`):
 
 ```bash
 pytest
@@ -263,4 +264,4 @@ Place ontology input files inside the appropriate directory under `data/input/` 
 
 This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
 
-See the `LICENSE` file for details.
+See the `LICENSE` file for details.

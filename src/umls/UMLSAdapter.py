@@ -12,12 +12,9 @@ from __future__ import annotations
 
 import os
 
-from ..BaseAdapter       import BaseAdapter, standard_directory
-from ..BaseAdapterConfig import BaseAdapterConfig
+from ..BaseAdapter       import BaseAdapter
 from .UMLSAdapterUtils   import readRRFFileByPath
 import pandas            as pd
-
-config_keyword: str = "umls"
 
 
 class UMLSAdapter(BaseAdapter):
@@ -31,19 +28,11 @@ class UMLSAdapter(BaseAdapter):
 
     ontology_name  = "UMLS"
 
+    # Settings are read from the `adapter.umls` section.
+    config_section = "umls"
+
     # Used if the config section doesn't set `prefix`.
     default_prefix = "UMLS:"
-
-    def __init__(
-        self, config: str | os.PathLike | dict | BaseAdapterConfig = standard_directory
-    ):
-        """
-        Load and validate the `adapter.umls` configuration.
-
-        `config` is a YAML path, a dict (the whole configuration or just the
-        `adapter.umls` settings) or a BaseAdapterConfig; see BaseAdapter.
-        """
-        super().__init__(config, config_keyword)
 
     def _loadFrames(self) -> list[pd.DataFrame]:
         """

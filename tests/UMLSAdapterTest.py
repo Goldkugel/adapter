@@ -14,12 +14,12 @@ from __future__ import annotations
 
 import os
 
-from unittest.mock  import patch
-from .UMLSAdapter       import UMLSAdapter
-from .UMLSAdapterUtils  import readRRFFileByPath
-from .                  import UMLSAdapterUtils
-from ..BaseAdapterUtils import referenceClass, labelClass
-from .UMLSAdapterUtils  import sourceAbbreviation
+from unittest.mock             import patch
+from src.umls.UMLSAdapter      import UMLSAdapter
+from src.umls.UMLSAdapterUtils import readRRFFileByPath
+from src.umls                  import UMLSAdapterUtils
+from src.BaseAdapterUtils      import referenceClass, labelClass
+from src.umls.UMLSAdapterUtils import sourceAbbreviation
 import pandas       as pd
 import yaml
 import pytest
@@ -398,8 +398,3 @@ class TestUMLSAdapterUtilsParsing:
 
         assert frame.empty
         assert list(frame.columns) == UMLSAdapterUtils.mrconsoUsedColumns
-
-
-if __name__ == "__main__":
-    import sys
-    sys.exit(pytest.main([__file__, "-v"]))

@@ -8,10 +8,12 @@ RF2 release files. All functions are used by SCTAdapter._loadFrames().
 
 from __future__ import annotations
 
-from ..BaseAdapterUtils import labelClass, definitionClass, referenceClass, childrenClass, synonymClass
+from ..BaseAdapterUtils import (
+    labelClass, definitionClass, referenceClass, childrenClass, synonymClass,
+    additionalFrom, readFileByPrefix,
+)
 from logger             import Logger
 import pandas           as pd
-import os
 import csv
 
 # --- EAV additional-column key ---
@@ -299,9 +301,7 @@ def getDescriptions(
         id_column        : known[rf2SourceConceptId].values,
         attribute_column : attribute.values,
         value_column     : known[rf2SourceTerm].values,
-        additional_column: known[rf2SourceCaseSignificanceId].map(
-            lambda v: {rf2SourceCaseSignificanceId: v}
-        ).values,
+        additional_column: additionalFrom(known[rf2SourceCaseSignificanceId], rf2SourceCaseSignificanceId),
     })
 
 
@@ -352,9 +352,7 @@ def getReferences(
         id_column        : active[rf2SourceReferencedComponentId].values,
         attribute_column : [referenceClass] * len(active),
         value_column     : active[rf2SourceMapTarget].values,
-        additional_column: active[rf2SourceRefsetId].map(
-            lambda v: {referenceOntology: v}
-        ).values,
+        additional_column: additionalFrom(active[rf2SourceRefsetId], referenceOntology),
     })
 
 
@@ -381,9 +379,7 @@ def getDefinitions(
         id_column        : definitions[rf2SourceConceptId].values,
         attribute_column : [definitionClass] * len(definitions),
         value_column     : definitions[rf2SourceTerm].values,
-        additional_column: definitions[rf2SourceCaseSignificanceId].map(
-            lambda v: {rf2SourceCaseSignificanceId: v}
-        ).values,
+        additional_column: additionalFrom(definitions[rf2SourceCaseSignificanceId], rf2SourceCaseSignificanceId),
     })
 
 
@@ -418,22 +414,8 @@ def readRF2FileByPath(
     directory containing it. Returns None and logs a warning if the
     filename doesn't start with any of the known RF2 prefixes.
     """
-    ret      = None
-    l        = Logger()
-    filename = os.path.basename(file_path)
-
-    for prefix, (reader, transform) in _rf2HandlersByPrefix.items():
-        if filename.startswith(prefix):
-            ret = transform(
-                reader(file_path, encoding, separator),
-                id_column,
-                attribute_column,
-                value_column,
-                additional_column
-            )
-            break
-
-    if ret is None:
-        l.log(f"'{filename}' doesn't match any known RF2 file prefix.")
-
-    return ret
+    return readFileByPrefix(
+        file_path, _rf2HandlersByPrefix, "RF2",
+        id_column, attribute_column, value_column, additional_column,
+        encoding, separator,
+    )
