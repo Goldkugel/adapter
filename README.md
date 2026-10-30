@@ -46,6 +46,7 @@ adapter/
 │   ├── BaseAdapterConfig.py
 │   ├── BaseAdapterUtils.py
 │   ├── BaseAdapterTest.py
+│   ├── BaseAdapterUtilsTest.py
 │   ├── hpo/
 │   │   ├── HPOAdapter.py
 │   │   ├── HPOAdapterUtils.py

@@ -341,6 +341,40 @@ class TestUMLSAdapterUtilsParsing:
 
         assert frame["value"].tolist() == ["Kept"]
 
+    def test_unknown_file_name_returns_none(self, tmp_path):
+        path = tmp_path / "MRSTY.RRF"
+        path.write_text("C1|T047|B2.2.1.2.1|Disease or Syndrome|AT1||\n", encoding="utf-8")
+
+        assert readRRFFileByPath(str(path), "id", "attribute", "value", "additional", "utf-8", "|") is None
+
+    def test_mrsty_reader_reads_all_columns(self, tmp_path):
+        # MRSTY has a reader but is not wired into readRRFFileByPath yet.
+        path = tmp_path / "MRSTY.RRF"
+        path.write_text("C1|T047|B2.2.1.2.1|Disease or Syndrome|AT1||\n", encoding="utf-8")
+
+        frame = UMLSAdapterUtils.readMRSTYFile(str(path), "utf-8", "|")
+
+        assert list(frame.columns) == UMLSAdapterUtils.mrstyColumns
+        assert frame.values.tolist() == [["C1", "T047", "B2.2.1.2.1", "Disease or Syndrome", "AT1", ""]]
+
+    def test_mrconso_codes_become_references_with_their_source(self, tmp_path):
+        rows = [
+            ["C1", "ENG", "P", "L1", "PF", "S1", "Y", "A1", "", "", "", "MSH", "PT", "D001", "Term", "0", "N", ""],
+            ["C1", "ENG", "S", "L2", "VO", "S2", "N", "A2", "", "", "", "SNOMEDCT_US", "FN", "404684003", "Other TTY", "0", "N", ""],
+        ]
+        path = tmp_path / "MRCONSO.RRF"
+        path.write_text("".join("|".join(r) + "|\n" for r in rows), encoding="utf-8")
+
+        frame = readRRFFileByPath(str(path), "id", "attribute", "value", "additional", "utf-8", "|")
+
+        refs = frame[frame["attribute"] == referenceClass]
+        assert sorted(zip(refs["value"], [a[sourceAbbreviation] for a in refs["additional"]])) == [
+            ("404684003", "SNOMEDCT_US"),
+            ("D001", "MSH"),
+        ]
+        # The FN string produces no synonym, only its code a reference.
+        assert "Other TTY" not in frame["value"].tolist()
+
     def test_empty_rrf_file_gives_empty_frame(self, tmp_path):
         path = tmp_path / "MRCONSO.RRF"
         path.write_text("", encoding="utf-8")

@@ -1,7 +1,7 @@
 """
 Tests for BaseAdapter.
 
-Contains four test classes:
+Contains five test classes:
 - TestBaseAdapterConfigErrors: clear errors for missing or invalid
   configuration sections.
 - TestBaseAdapterConfigSources: configuration from a YAML path, a dict or
@@ -10,6 +10,7 @@ Contains four test classes:
   prefix.
 - TestBaseAdapterLoad: the shared steps of load() (merging, cleaning,
   the _clean() hook, prefixing).
+- TestBaseAdapterToCSV: writing self.data to the configured output file.
 """
 
 from __future__ import annotations
@@ -225,6 +226,38 @@ class TestBaseAdapterLoad:
 
         assert adapter.load() == 0
         assert adapter.data is None
+
+
+class TestBaseAdapterToCSV:
+
+    def test_to_csv_creates_the_folder_and_uses_the_configured_format(self, tmp_path):
+        output_folder = tmp_path / "out" / "dummy"
+        adapter = DummyAdapter({
+            "output_folder": str(output_folder),
+            "output_file"  : "dummy.csv",
+            "delimiter"    : "|",
+        })
+        adapter.data = make_frame(["DUMMY:1"], [labelClass], ["A; B"])
+
+        assert adapter.to_csv() == 1
+
+        back = pd.read_csv(output_folder / "dummy.csv", sep="|", dtype=str)
+        assert back[["id", "attribute", "value"]].values.tolist() == [
+            ["DUMMY:1", labelClass, "A; B"],
+        ]
+
+    @patch("os.path.isfile", return_value=False)
+    def test_load_then_to_csv_writes_the_loaded_rows(self, mock_is_file, tmp_path):
+        adapter = DummyAdapter(
+            {"input_files": ["x"], "output_folder": str(tmp_path), "output_file": "d.csv"},
+            [make_frame(["1", "1"], [labelClass, childrenClass], ["A", "2"])],
+        )
+        adapter.load()
+
+        assert adapter.to_csv() == 2
+
+        back = pd.read_csv(tmp_path / "d.csv", sep=";", dtype=str)
+        assert back[["id", "value"]].values.tolist() == [["DUMMY:1", "A"], ["DUMMY:1", "DUMMY:2"]]
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@ src/
 ├── BaseAdapterConfig.py   Pydantic model of one adapter config section
 ├── BaseAdapterUtils.py    EAV attribute names, filesystem and CSV helpers
 ├── BaseAdapterTest.py     pytest tests for BaseAdapter
+├── BaseAdapterUtilsTest.py  pytest tests for the filesystem and CSV helpers
 ├── hpo/                   Human Phenotype Ontology (OWL)
 ├── sct/                   SNOMED CT (RF2)
 └── umls/                  UMLS Metathesaurus (RRF)

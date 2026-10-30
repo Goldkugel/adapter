@@ -1,13 +1,16 @@
 """
 Tests for SCTAdapter and SCTAdapterUtils.
 
-Contains six test classes:
+Contains seven test classes:
 - TestSCTAdapterInit: unit tests for configuration loading via __init__.
 - TestFindInputFile: unit tests for the _findInputFile helper method.
 - TestSCTAdapterLoadSkipping: tests for the skip-if-present and no-input-files paths.
 - TestSCTAdapterLoadConceptHandling: tests for Concept file reading and filtering.
-- TestSCTAdapterLoadMerging: tests for DataFrame merging and row count.
+- TestSCTAdapterLoadMerging: tests for DataFrame merging, prefixing,
+  row count and the missing Concept file.
 - TestSCTAdapterUtilsFullRelease: tests for reading real RF2 Full files.
+- TestSCTAdapterUtilsTransformers: tests for the typeId mapping, the
+  additional dicts, the active-concept filter and unknown file names.
 """
 
 from __future__ import annotations
@@ -20,9 +23,13 @@ from .SCTAdapterUtils   import (
     conceptPrefix, rf2SourceId,
     descriptionPrefix, relationshipPrefix,
     readConceptFile, getConcepts, getChildren, readRF2FileByPath,
-    synonymTypeId, isARelationshipTypeId,
+    removeNotActiveConcepts,
+    fsnTypeId, synonymTypeId, definitionTypeId, isARelationshipTypeId,
+    referenceOntology,
 )
-from ..BaseAdapterUtils import childrenClass
+from ..BaseAdapterUtils import (
+    childrenClass, labelClass, synonymClass, definitionClass, referenceClass,
+)
 import pandas           as pd
 import yaml
 import pytest
@@ -234,8 +241,9 @@ class TestSCTAdapterLoadConceptHandling:
 
 class TestSCTAdapterLoadMerging:
     """
-    Tests for the DataFrame merging, deduplication, and row-count
-    return value in SCTAdapter.load().
+    Tests for the DataFrame merging, prefixing and row-count return
+    value in SCTAdapter.load(), and for the error raised when no Concept
+    file is configured.
     """
 
     @patch("os.path.isfile", return_value=False)
@@ -385,6 +393,75 @@ class TestSCTAdapterUtilsFullRelease:
         })
         frame = getChildren(data, "id", "attribute", "value", "additional")
         assert frame["additional"].iloc[0] is not frame["additional"].iloc[1]
+
+
+DESCRIPTION_HEADER = ["id", "effectiveTime", "active", "moduleId", "conceptId",
+                      "languageCode", "typeId", "term", "caseSignificanceId"]
+
+
+class TestSCTAdapterUtilsTransformers:
+    """
+    Tests for converting RF2 rows into EAV rows: which typeId becomes
+    which attribute, what goes into the additional dict, and how files
+    are recognised by their name.
+    """
+
+    def test_description_type_ids_map_to_label_synonym_and_definition(self, tmp_path):
+        path = write_rf2(tmp_path / "sct2_Description_Snapshot-en_INT_20260701.txt", DESCRIPTION_HEADER, [
+            ["1", "20200131", "1", "m", "100", "en", fsnTypeId,        "Fever (finding)", "cs1"],
+            ["2", "20200131", "1", "m", "100", "en", synonymTypeId,    "Fever",           "cs2"],
+            ["3", "20200131", "1", "m", "100", "en", definitionTypeId, "Raised temp.",    "cs3"],
+            ["4", "20200131", "1", "m", "100", "en", "123456",         "Unknown type",    "cs4"],
+        ])
+        frame = readRF2FileByPath(path, "id", "attribute", "value", "additional", "utf-8", "\t")
+
+        assert sorted(zip(frame["attribute"], frame["value"])) == [
+            (definitionClass, "Raised temp."),
+            (labelClass,      "Fever (finding)"),
+            (synonymClass,    "Fever"),
+        ]
+        assert set(frame["id"]) == {"100"}
+        label = frame[frame["attribute"] == labelClass].iloc[0]
+        assert label["additional"] == {"caseSignificanceId": "cs1"}
+
+    def test_text_definition_file_keeps_only_active_definitions(self, tmp_path):
+        path = write_rf2(tmp_path / "sct2_TextDefinition_Full-en_INT_20260701.txt", DESCRIPTION_HEADER, [
+            ["1", "20200131", "1", "m", "100", "en", definitionTypeId, "Kept definition",  "cs"],
+            ["2", "20200131", "0", "m", "100", "en", definitionTypeId, "Inactive",         "cs"],
+            ["3", "20200131", "1", "m", "100", "en", synonymTypeId,    "Stray synonym row", "cs"],
+        ])
+        frame = readRF2FileByPath(path, "id", "attribute", "value", "additional", "utf-8", "\t")
+
+        assert frame[["id", "attribute", "value"]].values.tolist() == [
+            ["100", definitionClass, "Kept definition"],
+        ]
+
+    def test_simple_map_rows_carry_the_refset_id(self, tmp_path):
+        path = write_rf2(
+            tmp_path / "der2_sRefset_SimpleMapFull_INT_20260701.txt",
+            ["id", "effectiveTime", "active", "moduleId", "refsetId",
+             "referencedComponentId", "mapTarget"],
+            [["u1", "20200131", "1", "m", "446608001", "100", "8000/3"]],
+        )
+        frame = readRF2FileByPath(path, "id", "attribute", "value", "additional", "utf-8", "\t")
+
+        assert frame[["id", "attribute", "value"]].values.tolist() == [["100", referenceClass, "8000/3"]]
+        assert frame["additional"].iloc[0] == {referenceOntology: "446608001"}
+
+    def test_remove_not_active_concepts_checks_the_id_column(self):
+        data = pd.DataFrame({
+            "id"   : ["100", "200", "100"],
+            "value": ["a", "b", "300"],
+        })
+        kept = removeNotActiveConcepts(data, "id", ["100"])
+
+        # Only the ID is checked; "300" in the value column is kept.
+        assert kept.values.tolist() == [["100", "a"], ["100", "300"]]
+        assert list(kept.index) == [0, 1]
+
+    def test_unknown_file_name_returns_none(self, tmp_path):
+        path = write_rf2(tmp_path / "sct2_Identifier_Full_INT_20260701.txt", ["id"], [["1"]])
+        assert readRF2FileByPath(path, "id", "attribute", "value", "additional", "utf-8", "\t") is None
 
 
 if __name__ == "__main__":

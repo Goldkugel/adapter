@@ -1,13 +1,15 @@
 """
 Tests for HPOAdapter and its configuration loading.
 
-Contains four test classes:
+Contains five test classes:
 - TestHPOAdapterInit: unit tests for configuration loading via __init__.
 - TestHPOAdapterLoad: integration tests against the real hp.owl file,
   verifying the shape and contents of the loaded EAV DataFrame.
 - TestHPOAdapterUtilsQueries: unit tests for the SPARQL extractors
   against a small in-memory graph.
 - TestHPOAdapterLoadWithSampleGraph: load() end to end on that graph.
+- TestHPOAdapterUtilsHelpers: the ID, synonym class and synonym type
+  helpers and the _clean() hook.
 """
 
 from __future__ import annotations
@@ -20,11 +22,15 @@ from unittest.mock      import MagicMock, patch
 from rdflib             import Graph
 from .HPOAdapter        import HPOAdapter
 from .HPOAdapterUtils   import (
-    getSynonymsAndTypes, getReferences,
+    getSynonymsAndTypes, getReferences, getComments, getChildren,
+    getConceptIDFromString, getSynonymClassFromString, getSynonymTypeFromString,
     semanticClass, sourceType, exactSynonymClass, relatedSynonymClass,
+    broadSynonymClass, narrowSynonymClass,
     laypersonSynonymType, directSynonymType,
-    abbreviationSynonymType, pluralFormSynonymType,
+    abbreviationSynonymType, pluralFormSynonymType, obsoleteSynonymType,
+    ukSpellingSynonymType, allelicRequirementSynonymType,
 )
+import pandas as pd
 from ..BaseAdapterUtils import (
     labelClass, definitionClass, commentClass,
     referenceClass, childrenClass, synonymClass,
@@ -203,6 +209,54 @@ obo:HP_3 a owl:Class ;
 """
 
 
+# Small hierarchy with comments: HP:11 is a child of HP:10 and of an
+# anonymous restriction; HP:12 is deprecated and must not appear as a
+# parent or child.
+HIERARCHY_TTL = """
+@prefix rdfs:     <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:      <http://www.w3.org/2002/07/owl#> .
+@prefix obo:      <http://purl.obolibrary.org/obo/> .
+
+obo:HP_10 a owl:Class ;
+    rdfs:comment "Direct and annotated comment." .
+
+[] a owl:Axiom ;
+    owl:annotatedSource obo:HP_10 ;
+    owl:annotatedProperty rdfs:comment ;
+    owl:annotatedTarget "Direct and annotated comment." .
+
+obo:HP_11 a owl:Class ;
+    rdfs:subClassOf obo:HP_10 ,
+        [ a owl:Restriction ;
+          owl:onProperty obo:RO_0000052 ;
+          owl:someValuesFrom obo:HP_10 ] .
+
+[] a owl:Axiom ;
+    owl:annotatedSource obo:HP_11 ;
+    owl:annotatedProperty rdfs:comment ;
+    owl:annotatedTarget "Comment only on the axiom." .
+
+obo:HP_12 a owl:Class ;
+    owl:deprecated true ;
+    rdfs:subClassOf obo:HP_10 .
+
+obo:HP_13 a owl:Class ;
+    rdfs:subClassOf obo:HP_12 .
+"""
+
+
+def graph_hpo(ttl):
+    """A stand-in for an owlready2 ontology whose RDF graph is `ttl`."""
+    hpo = MagicMock()
+    hpo.world.as_rdflib_graph.return_value = Graph().parse(data=ttl, format="turtle")
+    return hpo
+
+
+@pytest.fixture
+def hierarchy_hpo():
+    return graph_hpo(HIERARCHY_TTL)
+
+
 @pytest.fixture
 def sample_hpo():
     """
@@ -271,6 +325,27 @@ obo:HP_{i + 10} a owl:Class ;
         frame = getReferences(sample_hpo, "id", "attribute", "value", "additional")
         assert [(r.id, str(r.value)) for r in frame.itertuples()] == [("HP:1", "UMLS:C1")]
 
+    def test_comments_from_direct_and_axiom_annotations_are_found_once(self, hierarchy_hpo):
+        frame = getComments(hierarchy_hpo, "id", "attribute", "value", "additional")
+        assert sorted((r.id, str(r.value)) for r in frame.itertuples()) == [
+            ("HP:10", "Direct and annotated comment."),
+            ("HP:11", "Comment only on the axiom."),
+        ]
+        assert set(frame["attribute"]) == {commentClass}
+
+    def test_children_rows_read_parent_has_child(self, hierarchy_hpo):
+        frame = getChildren(hierarchy_hpo, "id", "attribute", "value", "additional")
+        rows = sorted((r.id, r.value) for r in frame.itertuples())
+        # The restriction superclass of HP:11 gives an empty parent ID,
+        # which BaseAdapter.load() removes later. Deprecated parents and
+        # children are excluded here.
+        assert rows == [("", "HP:11"), ("HP:10", "HP:11")]
+        assert set(frame["attribute"]) == {childrenClass}
+
+    def test_extractors_return_none_without_an_ontology(self):
+        for extract in (getSynonymsAndTypes, getReferences, getComments, getChildren):
+            assert extract(None, "id", "attribute", "value", "additional") is None
+
 
 class TestHPOAdapterLoadWithSampleGraph:
     """
@@ -291,6 +366,58 @@ class TestHPOAdapterLoadWithSampleGraph:
         assert set(data[adapter.config.attribute_column]) == {
             labelClass, definitionClass, referenceClass, synonymClass,
         }
+
+
+class TestHPOAdapterUtilsHelpers:
+    """
+    Unit tests for the string helpers of HPOAdapterUtils and for
+    HPOAdapter._clean().
+    """
+
+    @pytest.mark.parametrize("iri, expected", [
+        ("http://purl.obolibrary.org/obo/HP_0000118", "HP:0000118"),
+        ("http://purl.obolibrary.org/obo/IAO_0000115", "IAO:0000115"),
+        ("http://www.geneontology.org/formats/oboInOwl#hasDbXref", "oboInOwl#hasDbXref"),
+        ("N1a2b3c4d", ""),   # blank node ID, no "/"
+        ("", ""),
+        (None, ""),
+    ])
+    def test_concept_id_from_string(self, iri, expected):
+        assert getConceptIDFromString(iri) == expected
+
+    @pytest.mark.parametrize("iri, expected", [
+        ("http://www.geneontology.org/formats/oboInOwl#hasExactSynonym", exactSynonymClass),
+        ("http://www.geneontology.org/formats/oboInOwl#hasRelatedSynonym", relatedSynonymClass),
+        ("http://www.geneontology.org/formats/oboInOwl#hasBroadSynonym", broadSynonymClass),
+        ("http://www.geneontology.org/formats/oboInOwl#hasNarrowSynonym", narrowSynonymClass),
+        ("http://www.w3.org/2000/01/rdf-schema#label", ""),
+        (None, ""),
+    ])
+    def test_synonym_class_from_string(self, iri, expected):
+        assert getSynonymClassFromString(iri) == expected
+
+    @pytest.mark.parametrize("iri, expected", [
+        ("http://purl.obolibrary.org/obo/hp#layperson", laypersonSynonymType),
+        ("http://purl.obolibrary.org/obo/hp#abbreviation", abbreviationSynonymType),
+        ("http://purl.obolibrary.org/obo/hp#obsolete_synonym", obsoleteSynonymType),
+        ("http://purl.obolibrary.org/obo/hp#uk_spelling", ukSpellingSynonymType),
+        ("http://purl.obolibrary.org/obo/hp#plural_form", pluralFormSynonymType),
+        ("http://purl.obolibrary.org/obo/hp#allelic_requirement", allelicRequirementSynonymType),
+        ("http://purl.obolibrary.org/obo/hp#unknown_type", directSynonymType),
+        ("", directSynonymType),
+        (None, ""),
+    ])
+    def test_synonym_type_from_string(self, iri, expected):
+        assert getSynonymTypeFromString(iri) == expected
+
+    def test_clean_removes_ids_with_a_hash(self, adapter):
+        data = pd.DataFrame({
+            "id"        : ["HP:1", "oboInOwl#hasDbXref", "hp#layperson"],
+            "attribute" : [labelClass] * 3,
+            "value"     : ["a", "b", "c"],
+            "additional": [{}, {}, {}],
+        })
+        assert adapter._clean(data)["id"].tolist() == ["HP:1"]
 
 
 if __name__ == "__main__":
