@@ -73,7 +73,11 @@ def getSynonymTypeFromString(string: str = "") -> str:
     """
     Determine the synonym *type* based on markers found in the source string.
 
-    The first matching type found will be returned.
+    The string is the IRI of an oboInOwl:hasSynonymType value (e.g.
+    'http://purl.obolibrary.org/obo/hp#layperson'). The markers are
+    checked in the order below and the first match is returned; a string
+    without a known marker, including "" for a synonym without a typed
+    axiom, gives the direct type. None gives "".
     """
     ret = ""
 
@@ -102,7 +106,7 @@ def getSynonymTypeFromString(string: str = "") -> str:
         elif owlSourceSynonymTypeAllelic in string:
             ret = allelicRequirementSynonymType
 
-        # Direct synonym (no qualifier)
+        # Direct synonym (no or an unknown type)
         else:
             ret = directSynonymType
 
@@ -112,7 +116,8 @@ def getSynonymTypeFromString(string: str = "") -> str:
 def getSynonymClassFromString(string: str = "") -> str:
     """
     Determine the synonym *class* (exact, related, broad, narrow)
-    based on ontology source markers in the string.
+    based on ontology source markers in the string, i.e. the IRI of the
+    oboInOwl synonym property. Returns "" if no marker matches.
     """
     ret = ""
 
@@ -143,6 +148,11 @@ def getConceptIDFromString(string: str = "") -> str:
     Example:
         'http://purl.obolibrary.org/obo/HP_0000118'
         -> 'HP:0000118'
+
+    Strings without a "/" (e.g. the IDs rdflib gives blank nodes) and
+    None return "", so their rows are later removed by BaseAdapter.load()
+    as rows without an ID. Hash IRIs keep their "#" (e.g.
+    'oboInOwl#hasDbXref') and are removed by HPOAdapter._clean().
     """
     ret = ""
 
@@ -229,7 +239,7 @@ def getSynonymsAndTypes(
 
         # Accumulate query results into Python lists
         ids        = []
-        attributes = []
+        values     = []
         additional = []
 
         for row in g.query(synonymQuery, initNs=_INIT_NS):
@@ -242,7 +252,7 @@ def getSynonymsAndTypes(
                 ids.append(getConceptIDFromString(str(row.hpoID)))
 
                 # Raw synonym literal
-                attributes.append(row.synonym)
+                values.append(row.synonym)
 
                 # Map RDF property and type to internal class and type
                 additional.append({
@@ -254,7 +264,7 @@ def getSynonymsAndTypes(
         ret = pd.DataFrame({
             id_column         : ids,
             attribute_column  : [synonymClass] * len(ids),
-            value_column      : attributes,
+            value_column      : values,
             additional_column : additional
         })
 
@@ -407,8 +417,9 @@ def getLabels(
         g = hpo.world.as_rdflib_graph()
 
         # Simple query for labels. This also matches labelled entities
-        # that are not concepts (e.g. annotation properties); their rows
-        # are removed by the ID filters in HPOAdapter.load().
+        # that are not HPO concepts. Those with a hash IRI (e.g.
+        # oboInOwl#hasDbXref) are removed by HPOAdapter._clean(); those
+        # with an OBO IRI (e.g. obo:IAO_0000115, "definition") are kept.
         query = """
             SELECT ?hpoID ?label WHERE {
                 FILTER NOT EXISTS { ?hpoID owl:deprecated true }
@@ -451,6 +462,8 @@ def getChildren(
 
     Each row represents:
         parent HPO ID -> child HPO ID
+    i.e. the parent is the id and the child the value (attribute
+    childrenClass), as in the SNOMED CT adapter.
     """
     ret = None
     l = Logger()
@@ -463,7 +476,7 @@ def getChildren(
 
         # Retrieve all subclass relationships. Superclasses that are
         # anonymous restrictions (blank nodes) yield an empty parent ID
-        # and are removed by HPOAdapter.load().
+        # and are removed by BaseAdapter.load() as rows without an ID.
         query = """
             SELECT ?child ?parent WHERE {
                 FILTER NOT EXISTS { ?child owl:deprecated true }

@@ -22,9 +22,9 @@ row, but their codes still produce `reference` rows. A concept without a
 `PT` or `PN` string gets exactly one label from its preferred atom: the atom
 with `TS = P`, `STT = PF` and `ISPREF = Y` (if none has all three, the one
 with the most, in that order of importance; ties keep the first in the
-file). Duplicate
-`(id, attribute, value)` rows are dropped, so when the same string or code
-comes from several sources, only the first source abbreviation is kept.
+file). Duplicate `(id, attribute, value)` rows are dropped, so when the same
+string or code comes from several sources, only the first source
+abbreviation is kept.
 
 All fields are quoted and separated by `;` (configurable). The
 `additional` column is a Python dict literal; read it with

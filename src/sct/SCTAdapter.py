@@ -117,6 +117,8 @@ class SCTAdapter(BaseAdapter):
                 self.config.encoding,
                 self.config.separator
             )
+            # None means the file matches no known RF2 prefix (logged by
+            # readRF2FileByPath) and is skipped.
             if frame is not None:
                 frames.append(
                     removeNotActiveConcepts(

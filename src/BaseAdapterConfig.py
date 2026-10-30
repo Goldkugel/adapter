@@ -6,13 +6,14 @@ class BaseAdapterConfig(BaseModel):
     by all ontology adapters.
 
     Instances are created by `BaseAdapter.__init__()` from one section of
-    the YAML config file (e.g. `adapter.hpo`). Pydantic validates field
-    types and enforces defaults for any fields not present in the
-    supplied data.
+    the YAML config file (e.g. `adapter.hpo`) or from a dict, or are
+    created by the caller and passed to the adapter directly. Pydantic
+    validates field types and enforces defaults for any fields not present
+    in the supplied data.
 
-    Ontology-specific adapters that need additional fields (e.g. a release
-    version, or source-specific file paths) should subclass this model
-    rather than modifying it directly.
+    All adapters share this one model. Fields that only some adapters use
+    (e.g. `separator`, unused by HPO) are defined here as well and simply
+    ignored by the others.
     """
 
     # Reject any keys in the input data that aren't explicitly defined below.

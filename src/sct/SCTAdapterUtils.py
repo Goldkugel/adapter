@@ -3,7 +3,7 @@ Utility functions and constants for the SNOMED CT adapter.
 
 Provides RF2 column layouts, file readers, and EAV transformers for
 the Concept, Description, TextDefinition, Relationship, and SimpleMap
-RF2 release files. All functions are used by SCTAdapter.load().
+RF2 release files. All functions are used by SCTAdapter._loadFrames().
 """
 
 from __future__ import annotations
@@ -138,11 +138,13 @@ def _readRF2File(
     separator: str
 ) -> pd.DataFrame:
     """
-    Read a single tab-delimited RF2 file into a DataFrame.
+    Read a single RF2 file (tab-delimited in standard releases; the
+    separator comes from the configuration) into a DataFrame.
 
     All columns are read as strings to avoid misinterpreting SCTIDs or
     other numeric-looking fields (e.g. losing precision, or reformatting
-    into scientific notation).
+    into scientific notation), and NA detection is disabled so empty
+    fields become "".
     """
     l = Logger()
     l.printFileProcessingStart(path)
@@ -263,7 +265,9 @@ def removeNotActiveConcepts(
     Filter an EAV DataFrame to rows whose ID appears in conceptIDs.
 
     Used after each RF2 file is converted to EAV to ensure only rows
-    belonging to currently active concepts are retained.
+    belonging to currently active concepts are retained. Only the ID
+    column is checked: for child rows that is the parent, while the child
+    in the value column is not checked.
     """
     return data[data[id_column].isin(conceptIDs)].copy().reset_index(drop=True)
 
@@ -283,6 +287,9 @@ def getDescriptions(
     dropped. term becomes the value, and caseSignificanceId is carried
     through as additional information.
     """
+    # Map typeId to the attribute name; unknown typeIds map to NaN and
+    # are dropped from both the rows and the attribute series, so the two
+    # stay aligned row by row.
     active    = _activeOnly(data)
     attribute = active[rf2SourceTypeId].map(_descriptionTypeIdToAttribute)
     known     = active[attribute.notna()].copy()

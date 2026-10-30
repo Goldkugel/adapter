@@ -1,8 +1,10 @@
 # Configuration
 
 The `logger`, `normalizer` and `llm` sections of `config.yaml` belong to
-other packages of the pipeline that share this file; only the `adapter`
-section is read by this package.
+other packages of the pipeline that share this file. This package reads
+the `adapter` section; if the logger has not been configured yet when an
+adapter is created, the adapter also passes the `logger` section to the
+logger package.
 
 All adapter settings are stored in `config.yaml` under the top-level
 `adapter` section. Each subsection is keyed by the adapter's short name
@@ -13,7 +15,13 @@ default.
 
 If the `adapter` section or the adapter's subsection is missing or empty, or
 if it contains unknown keys or invalid values, creating the adapter raises a
-`ValueError` that names the section and the configuration file.
+`ValueError` that names the section and the configuration file (or says
+that it came from a dict). A configuration file that does not exist raises a
+`FileNotFoundError`.
+
+The same settings can also be passed as a dict (a whole configuration like
+this file, or just one adapter subsection) or as a `BaseAdapterConfig`; see
+the main README.
 
 ---
 

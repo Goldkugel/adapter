@@ -29,8 +29,9 @@ class HPOAdapter(BaseAdapter):
     Concrete adapter for loading the Human Phenotype Ontology (HPO)
     into the shared EAV DataFrame format.
 
-    Loads the OWL file specified in the adapter configuration via
-    owlready2, then runs each HPOAdapterUtils extractor (labels,
+    Loads the OWL file specified in the adapter configuration (the first
+    entry of `input_files`) via owlready2, then runs each HPOAdapterUtils
+    extractor (labels,
     definitions, comments, children, references, synonyms) against
     it.
     """
@@ -63,6 +64,8 @@ class HPOAdapter(BaseAdapter):
         """
         l = Logger()
 
+        # The HPO is distributed as a single OWL file, so only the first
+        # configured input file is used; any further entries are ignored.
         input_file = self.config.input_files[0]
         l.log(f"Loading the Human Phenotype Ontology (HPO) from '{input_file}'...")
 
@@ -102,6 +105,8 @@ class HPOAdapter(BaseAdapter):
 
         l.log("Removing rows with a '#' in the ID...")
         id_column = self.config.id_column
+        # Work on a copy: `data` is a filtered view of the merged frame,
+        # and assigning a column to it would raise SettingWithCopyWarning.
         data = data.copy()
         data[id_column] = data[id_column].astype(str)
         data = data[~data[id_column].str.contains('#', na=False)]

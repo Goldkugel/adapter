@@ -10,7 +10,7 @@ exported from `__init__.py`.
 
 ```
 src/
-├── __init__.py            Public API (adapters and attribute-name constants)
+├── __init__.py            Public API (adapters, BaseAdapterConfig, CSV writers and attribute-name constants)
 ├── BaseAdapter.py         Abstract base class: config loading, shared load() steps and CSV export
 ├── BaseAdapterConfig.py   Pydantic model of one adapter config section
 ├── BaseAdapterUtils.py    EAV attribute names, filesystem and CSV helpers
@@ -32,11 +32,15 @@ Each ontology subpackage follows the same pattern:
 
 ## How an adapter works
 
-1. **Configuration** – `BaseAdapter.__init__()` reads `config/config.yaml`
-   and validates the section `adapter.<name>` (e.g. `adapter.sct`) into a
-   `BaseAdapterConfig`. Unknown keys are rejected. If `prefix` isn't set,
-   the adapter's `default_prefix` applies. A missing, empty or invalid
-   section raises a `ValueError` naming the section.
+1. **Configuration** – `BaseAdapter.__init__()` reads a YAML file
+   (`config/config.yaml` by default) or a full configuration dict and
+   validates the section `adapter.<name>` (e.g. `adapter.sct`) into a
+   `BaseAdapterConfig`. It also accepts just the adapter's settings as a
+   dict, or a ready `BaseAdapterConfig` (of which it stores a copy).
+   Unknown keys are rejected. If `prefix` isn't set, the adapter's
+   `default_prefix` applies. A missing, empty or invalid section raises a
+   `ValueError` naming the section. If the logger is not configured yet,
+   it is configured from the `logger` section of the same file or dict.
 2. **Loading** – `load()` calls the adapter's `_loadFrames()`, which reads
    the configured input files and converts each into a DataFrame with the
    four EAV columns (`id`, `attribute`, `value`, `additional`). The column
@@ -61,9 +65,9 @@ Each ontology subpackage follows the same pattern:
    then replaces the target, so an interrupted run never leaves a
    half-written CSV.
 
-`load()` does nothing if `skip_if_present` is set and the output file
-already exists. Files whose names match no known prefix are logged and
-skipped.
+`load()` does nothing if no input files are configured, or if
+`skip_if_present` is set and the output file already exists. Files whose
+names match no known prefix are logged and skipped.
 
 ---
 
@@ -93,8 +97,11 @@ Run from the repository root, so that the relative paths in the
 configuration and the `src.` patch targets in the tests resolve:
 
 ```bash
-pytest src/
+pytest
 ```
 
-Most tests use mocks, small temporary RF2/RRF files or an in-memory RDF
-graph; `BaseAdapterTest.py` uses a minimal dummy adapter. `TestHPOAdapterLoad` needs the real `data/input/hpo/hp.owl`.
+(`pyproject.toml` points pytest at `src/` and collects the `*Test.py`
+files.) Most tests use mocks, small temporary RF2/RRF files or an
+in-memory RDF graph; `BaseAdapterTest.py` uses a minimal dummy adapter.
+`TestHPOAdapterLoad` needs the real `data/input/hpo/hp.owl` and is skipped
+without it.

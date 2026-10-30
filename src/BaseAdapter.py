@@ -34,9 +34,9 @@ class BaseAdapter(ABC):
     Abstract base class for all ontology adapters.
 
     Handles loading and validating shared configuration (input/output
-    paths, CSV formatting options, ID prefix) from a YAML file, the
-    shared steps of `load()`, and a common `to_csv()` method for writing
-    the loaded EAV data to disk. Concrete subclasses (e.g. HPOAdapter,
+    paths, CSV formatting options, ID prefix) from a YAML file, a dict or
+    a BaseAdapterConfig, the shared steps of `load()`, and a common
+    `to_csv()` method for writing the loaded EAV data to disk. Concrete subclasses (e.g. HPOAdapter,
     SCTAdapter) must implement `_loadFrames()` to read their specific
     ontology source format, and may override `_clean()` for
     source-specific cleaning.
@@ -85,11 +85,13 @@ class BaseAdapter(ABC):
             If the section is missing or not a mapping, or if its values
             are invalid (e.g. unknown keys or wrong types).
         """
-        # Initialise instance attributes explicitly so each instance has
-        # its own config and data, rather than sharing class-level defaults.
+        # Declare the instance attributes. self.data stays None until
+        # load() finds data; self.config is set right below.
         self.config: BaseAdapterConfig = None
         self.data: pd.DataFrame        = None
 
+        # Raises before anything else happens if the configuration is
+        # missing or invalid, so no adapter exists with a broken config.
         self.config, logger_path, logger_settings = self._resolveConfig(config, adapter_name)
 
         # The Logger is a process-wide singleton. If the entry point has not
@@ -117,7 +119,10 @@ class BaseAdapter(ABC):
         if isinstance(config, BaseAdapterConfig):
             # Copy the given config so later changes by the caller do not
             # silently change the adapter's configuration. The adapter's
-            # default prefix applies unless the config sets one explicitly.
+            # default prefix applies unless the config sets one explicitly:
+            # model_fields_set holds only the fields passed when the model
+            # was created, so an explicit prefix="" is kept, while a prefix
+            # left at the field default is replaced.
             if "prefix" in config.model_fields_set:
                 return config.model_copy(deep=True), None, None
             return config.model_copy(deep=True, update={"prefix": self.default_prefix}), None, None
@@ -218,8 +223,8 @@ class BaseAdapter(ABC):
 
     def load(self) -> int:
         """
-        Load and parse the ontology from the files specified in the
-        configuration file, and store the EAV rows in self.data.
+        Load and parse the ontology from the input files named in the
+        configuration, and store the EAV rows in self.data.
 
         Reads the input via `_loadFrames()`, merges the frames, removes
         rows without an ID or value, applies `_clean()`, removes
@@ -230,7 +235,8 @@ class BaseAdapter(ABC):
         Returns
         -------
         int
-            Number of EAV rows loaded into self.data.
+            Number of EAV rows loaded into self.data (0 if nothing was
+            loaded, in which case self.data is left unchanged).
         """
         ret = 0
         l = Logger()
@@ -248,6 +254,8 @@ class BaseAdapter(ABC):
                 l.log(f"Loading {self.ontology_name} from "
                       f"{len(self.config.input_files)} files...")
 
+                # Drop the None entries (unrecognised files) and empty
+                # frames; pd.concat() would fail on an all-None list.
                 frames = [
                     frame for frame in self._loadFrames()
                     if frame is not None and len(frame) > 0
@@ -304,6 +312,8 @@ class BaseAdapter(ABC):
                     ret = len(self.data)
                     l.log(f"Reduced to {ret} entities/rows in total.")
 
+                    # The prefix is added last, so the steps above (and
+                    # _clean()) always see the IDs as the source has them.
                     if self.config.prefix:
                         l.log("Adding prefix...")
                         # Add the prefix to the id column

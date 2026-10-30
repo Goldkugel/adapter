@@ -2,7 +2,7 @@
 Utility functions and constants for the UMLS adapter.
 
 Provides RRF column layouts, file readers, and EAV transformers for
-the MRCONSO and MRDEF RRF release files, which UMLSAdapter.load()
+the MRCONSO and MRDEF RRF release files, which UMLSAdapter._loadFrames()
 processes. Column layouts for MRSTY and MRREL, and a reader for MRSTY,
 are defined as well but not yet wired into readRRFFileByPath(), so
 those files are skipped if configured.
@@ -101,17 +101,17 @@ rrfDirectionalityFlag               : str = "DIR"
 mrconsoColumns = [
     rrfConceptUniqueIdentifier,          # ID
     rrfLanguage,                         # Filter: only ENG
-    rrfTermStatus,
+    rrfTermStatus,                       # Fallback label: TS = P
     rrfLexicalUniqueIdentifier,
-    rrfStringType,
+    rrfStringType,                       # Fallback label: STT = PF
     rrfStringUniqueIdentifier,
-    rrfIsPreferred,
+    rrfIsPreferred,                      # Fallback label: ISPREF = Y
     rrfAtomUniqueIdentifier,
     rrfSourceAtomUniqueIdentifier,
     rrfSourceConceptUniqueIdentifier,
     rrfSourceDescriptorUniqueIdentifier,
     rrfSourceAbbreviation,               # Additional: source vocabulary
-    rrfTermType,                         # Determines attribute: label or synonym
+    rrfTermType,                         # Determines attribute: label, synonym or none
     rrfSourceCode,                       # Value for reference rows
     rrfString,                           # Value for label/synonym rows
     rrfSourceRestrictionLevel,
@@ -418,9 +418,12 @@ def getConcepts(
         synonymTerm      : synonymClass,
         abbreviationTerm : synonymClass,
     }
+    # Other TTYs map to NaN and produce no label/synonym row.
     attribute_series = filtered[rrfTermType].map(tty_to_attribute)
 
-    # Build label/synonym rows for rows with a known TTY and a non-empty string.
+    # Build label/synonym rows for rows with a known TTY and a non-empty
+    # string; the same mask is applied to the rows and to their attribute
+    # names, so the two stay aligned.
     known      = filtered[attribute_series.notna() & filtered[rrfString].notna() & (filtered[rrfString] != "")].copy()
     attributes = attribute_series[attribute_series.notna() & filtered[rrfString].notna() & (filtered[rrfString] != "")]
 
@@ -434,7 +437,9 @@ def getConcepts(
     })
 
     # Give every concept without a PT/PN label one label from its
-    # preferred atom.
+    # preferred atom. Only the atoms of those concepts are passed on, but
+    # all of their atoms (any TTY), since the preferred atom can have any
+    # term type.
     labelled = label_synonym_rows.loc[
         label_synonym_rows[attribute_column] == labelClass, id_column
     ]

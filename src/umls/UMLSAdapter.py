@@ -52,7 +52,8 @@ class UMLSAdapter(BaseAdapter):
         Returns
         -------
         list[pd.DataFrame]
-            One EAV DataFrame per recognised RRF file.
+            One entry per configured file: an EAV DataFrame, or None for
+            a file that matches no known RRF prefix (skipped by load()).
         """
         frames = []
 

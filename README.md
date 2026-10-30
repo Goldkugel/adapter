@@ -15,7 +15,7 @@ The generated EAV tables can be used for downstream analytics, knowledge graph c
 ## Features
 
 - Common adapter framework for ontology transformation
-- Configurable through YAML
+- Configurable through YAML, a dict or a Pydantic model
 - Standardized EAV output
 - Built-in logging
 - Validation using Pydantic models
@@ -28,6 +28,8 @@ The generated EAV tables can be used for downstream analytics, knowledge graph c
 
 ```
 adapter/
+├── .github/workflows/
+│   └── tests.yml
 ├── config/
 │   └── config.yaml
 ├── data/
@@ -36,11 +38,14 @@ adapter/
 │   │   ├── sct/
 │   │   └── umls/
 │   ├── output/
+│   │   └── transformed/
 │   └── logs/
 ├── src/
+│   ├── __init__.py
 │   ├── BaseAdapter.py
 │   ├── BaseAdapterConfig.py
 │   ├── BaseAdapterUtils.py
+│   ├── BaseAdapterTest.py
 │   ├── hpo/
 │   │   ├── HPOAdapter.py
 │   │   ├── HPOAdapterUtils.py
@@ -97,24 +102,21 @@ pip install -e .
 
 ## Configuration
 
-Configuration is stored in
+Configuration is stored by default in
 
 ```
 config/config.yaml
 ```
 
-The base configuration defines:
+The `adapter` section has one subsection per adapter (`hpo`, `sct`, `umls`), each defining:
 
-- input folder
-- input files
-- output folder
-- output filename
-- delimiter
-- encoding
-- logging options
-- adapter-specific settings
+- input folder and input files
+- output folder and output filename
+- output delimiter, input separator and encoding
+- ID prefix
+- EAV column names
 
-Each ontology adapter reads its own configuration section while sharing the common base configuration.
+All subsections share the same schema (`BaseAdapterConfig`); fields that are not set fall back to its defaults. The `logger` section of the same file configures the logger package (see [Logging](#logging)). Instead of a YAML file, an adapter can also be given a dict or a `BaseAdapterConfig` (see [Using an Adapter](#using-an-adapter)). All fields are described in [config/README.md](config/README.md).
 
 ---
 
@@ -258,6 +260,6 @@ Place ontology input files inside the appropriate directory under `data/input/` 
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
 
 See the `LICENSE` file for details.
