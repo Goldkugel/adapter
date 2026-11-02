@@ -220,6 +220,20 @@ class TestBaseAdapterLoad:
         assert adapter.data[["id", "value"]].values.tolist() == [["HP:1", "HP:2"]]
 
     @patch("os.path.isfile", return_value=False)
+    def test_failing_input_is_logged_and_raised(self, mock_is_file, tmp_path):
+        path = write_config(tmp_path, {"adapter": {"dummy": {"input_files": ["x"]}}})
+        adapter = DummyAdapter(path)
+
+        with patch.object(DummyAdapter, "_loadFrames", side_effect=OSError("disk gone")), \
+             patch.object(Logger, "log") as mock_log:
+            with pytest.raises(OSError, match="disk gone"):
+                adapter.load()
+
+        messages = [c.args[0] for c in mock_log.call_args_list]
+        assert "Loading dummy failed: OSError: disk gone" in messages
+        assert adapter.data is None
+
+    @patch("os.path.isfile", return_value=False)
     def test_load_without_data_leaves_data_unset(self, mock_is_file, tmp_path):
         path = write_config(tmp_path, {"adapter": {"dummy": {"input_files": ["x"]}}})
         adapter = DummyAdapter(path, [None])

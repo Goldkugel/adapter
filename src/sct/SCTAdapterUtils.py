@@ -372,15 +372,13 @@ def getDefinitions(
     conceptId becomes the id, term becomes the value, attribute is fixed
     to definitionClass, and caseSignificanceId is carried as additional.
     """
-    active      = _activeOnly(data)
-    definitions = active[active[rf2SourceTypeId] == definitionTypeId].copy()
-
-    return pd.DataFrame({
-        id_column        : definitions[rf2SourceConceptId].values,
-        attribute_column : [definitionClass] * len(definitions),
-        value_column     : definitions[rf2SourceTerm].values,
-        additional_column: additionalFrom(definitions[rf2SourceCaseSignificanceId], rf2SourceCaseSignificanceId),
-    })
+    # A TextDefinition file has the Description layout, so the Description
+    # transformer does the work; it maps the Definition typeId to
+    # definitionClass.
+    definitions = data[data[rf2SourceTypeId] == definitionTypeId]
+    return getDescriptions(
+        definitions, id_column, attribute_column, value_column, additional_column
+    )
 
 
 # Prefix -> (reader, transformer) lookup, checked in insertion order

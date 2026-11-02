@@ -367,6 +367,18 @@ class TestHPOAdapterLoadWithSampleGraph:
             labelClass, definitionClass, referenceClass, synonymClass,
         }
 
+    def test_only_the_first_input_file_is_loaded(self, sample_hpo):
+        adapter = HPOAdapter({"input_folder": "in/", "input_files": ["hp.owl", "extra.owl"]})
+        with patch("os.path.isfile", return_value=False), \
+             patch("src.hpo.HPOAdapter.get_ontology") as mock_get_ontology, \
+             patch("src.hpo.HPOAdapter.Logger.log") as mock_log:
+            mock_get_ontology.return_value.load.return_value = sample_hpo
+            adapter.load()
+
+        mock_get_ontology.assert_called_once_with(os.path.join("in/", "hp.owl"))
+        messages = [c.args[0] for c in mock_log.call_args_list]
+        assert "Only the first input file is used for HPO; ignoring ['extra.owl']." in messages
+
 
 class TestHPOAdapterUtilsHelpers:
     """

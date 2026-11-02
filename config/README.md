@@ -1,10 +1,9 @@
 # Configuration
 
-The `logger`, `normalizer` and `llm` sections of `config.yaml` belong to
-other packages of the pipeline that share this file. This package reads
-the `adapter` section; if the logger has not been configured yet when an
-adapter is created, the adapter also passes the `logger` section to the
-logger package.
+The `logger` section of `config.yaml` belongs to the logger package, which
+shares this file. This package reads the `adapter` section; if the logger
+has not been configured yet when an adapter is created, the adapter also
+passes the `logger` section to the logger package.
 
 All adapter settings are stored in `config.yaml` under the top-level
 `adapter` section. Each subsection is keyed by the adapter's short name

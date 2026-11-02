@@ -21,8 +21,8 @@ import csv
 # --- Filter value constants ---
 
 # RRF files use "Y" / "N" strings for boolean-like flags (e.g. SUPPRESS).
-yes : str = "Y"
-no  : str = "N"
+rrfYes : str = "Y"
+rrfNo  : str = "N"
 
 # --- Term type constants (values found in the TTY column of MRCONSO) ---
 
@@ -204,12 +204,12 @@ mrdefUsedColumns = [
 
 def _isEnglishAndNotSuppressed(data: pd.DataFrame) -> pd.Series:
     """Row mask for English (LAT = ENG), non-suppressed (SUPPRESS = N) rows."""
-    return (data[rrfLanguage] == englishLanguage) & (data[rrfSuppressibleFlag] == no)
+    return (data[rrfLanguage] == englishLanguage) & (data[rrfSuppressibleFlag] == rrfNo)
 
 
 def _isNotSuppressed(data: pd.DataFrame) -> pd.Series:
     """Row mask for non-suppressed (SUPPRESS = N) rows."""
-    return data[rrfSuppressibleFlag] == no
+    return data[rrfSuppressibleFlag] == rrfNo
 
 
 def _readRRFFile(
@@ -372,7 +372,7 @@ def _getFallbackLabels(
     rank = (
         (candidates[rrfTermStatus]  != preferredTermStatus).astype(int) * 4 +
         (candidates[rrfStringType]  != preferredStringType).astype(int) * 2 +
-        (candidates[rrfIsPreferred] != yes).astype(int)
+        (candidates[rrfIsPreferred] != rrfYes).astype(int)
     )
     best = (
         candidates.assign(_rank=rank.values)

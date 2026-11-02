@@ -29,6 +29,43 @@ logger_section: str        = "logger"
 standard_directory: str    = "./config/config.yaml"
 
 
+def _findSection(raw: object, keys: list[str], source: str) -> object:
+    """
+    Walk down the parsed configuration along `keys` (e.g. "adapter" ->
+    "sct") and return what is found there, raising a ValueError that
+    names the missing section, where it was looked for and the keys that
+    exist instead.
+    """
+    section = raw
+    for depth, key in enumerate(keys):
+        path = ".".join(keys[:depth + 1])
+        if not isinstance(section, dict):
+            raise ValueError(
+                f"Section '{path}' not found in {source}: its parent is "
+                f"empty or not a mapping."
+            )
+        if key not in section:
+            raise ValueError(
+                f"Section '{path}' not found in {source}. "
+                f"Available keys: {sorted(section)}."
+            )
+        section = section[key]
+    return section
+
+
+def _withoutEmpty(data: pd.DataFrame, column: str, description: str) -> pd.DataFrame:
+    """
+    Remove the rows whose `column` is missing or "", logging the step as
+    "Removing rows without <description>...".
+    """
+    l = Logger()
+    l.log(f"Removing rows without {description}...")
+    data = data[data[column].notna() & (data[column] != "")]
+    l.log(f"Removing rows without {description} completed.")
+    l.log(f"Reduced to {len(data)} entities/rows in total.")
+    return data
+
+
 class BaseAdapter(ABC):
     """
     Abstract base class for all ontology adapters.
@@ -159,27 +196,11 @@ class BaseAdapter(ABC):
             if isinstance(raw, dict) and logger_section in raw:
                 logger_path = file_path
 
-        # Walk down to the section, e.g. "adapter" -> "sct", raising a
-        # clear error naming the missing section and the keys that exist.
         keys = [configuration_section]
         if adapter_name:
             keys.append(adapter_name)
 
-        section = raw
-        for depth, key in enumerate(keys):
-            path = ".".join(keys[:depth + 1])
-            if not isinstance(section, dict):
-                raise ValueError(
-                    f"Section '{path}' not found in {source}: its parent is "
-                    f"empty or not a mapping."
-                )
-            if key not in section:
-                raise ValueError(
-                    f"Section '{path}' not found in {source}. "
-                    f"Available keys: {sorted(section)}."
-                )
-            section = section[key]
-
+        section = _findSection(raw, keys, source)
         return self._validateSection(section, ".".join(keys), source), logger_path, logger_settings
 
     def _validateSection(self, section: object, path: str, source: str) -> BaseAdapterConfig:
@@ -247,105 +268,111 @@ class BaseAdapter(ABC):
             Number of EAV rows loaded into self.data (0 if nothing was
             loaded, in which case self.data is left unchanged).
         """
-        ret = 0
         l = Logger()
 
-        if self.config.input_files:
-
-            output_file = os.path.join(
-                self.config.output_folder,
-                self.config.output_file
-            )
-
-            if isFile(output_file) and self.config.skip_if_present:
-                l.log("Skipping loading since output file is already present.")
-            else:
-                l.log(f"Loading {self.ontology_name} from "
-                      f"{len(self.config.input_files)} files...")
-
-                # Drop the None entries (unrecognised files) and empty
-                # frames; pd.concat() would fail on an all-None list.
-                frames = [
-                    frame for frame in self._loadFrames()
-                    if frame is not None and len(frame) > 0
-                ]
-
-                l.log("Loading completed.")
-
-                if frames:
-                    l.log("Merging data...")
-                    self.data = pd.concat(frames, ignore_index=True)
-                    l.log("Merging data completed.")
-                    ret = len(self.data)
-                    l.log(f"Found {ret} entities/rows in total.")
-
-                    id_column        = self.config.id_column
-                    attribute_column = self.config.attribute_column
-                    value_column     = self.config.value_column
-
-                    # Remove rows without an identifier — they cannot be
-                    # assigned to a concept.
-                    l.log("Removing rows without an ID...")
-                    self.data = self.data[
-                        (self.data[id_column].notna()) &
-                        (self.data[id_column] != "")
-                    ]
-                    l.log("Removing rows without an ID completed.")
-                    ret = len(self.data)
-                    l.log(f"Reduced to {ret} entities/rows in total.")
-
-                    # Remove rows without a value — empty terms, codes or
-                    # definitions add no information and can cause issues
-                    # downstream (e.g. empty cells in the EAV CSV).
-                    l.log("Removing rows without values...")
-                    self.data = self.data[
-                        (self.data[value_column].notna()) &
-                        (self.data[value_column] != "")
-                    ]
-                    l.log("Removing rows without values completed.")
-                    ret = len(self.data)
-                    l.log(f"Reduced to {ret} entities/rows in total.")
-
-                    self.data = self._clean(self.data)
-
-                    # Remove exact duplicates across (id, attribute, value) —
-                    # e.g. the same term from several sources; only the
-                    # first row's additional info is kept.
-                    l.log("Removing duplicate rows...")
-                    self.data = self.data.drop_duplicates(subset=[
-                        id_column,
-                        attribute_column,
-                        value_column
-                    ]).reset_index(drop=True)
-                    l.log("Removing duplicate rows completed.")
-                    ret = len(self.data)
-                    l.log(f"Reduced to {ret} entities/rows in total.")
-
-                    # The prefix is added last, so the steps above (and
-                    # _clean()) always see the IDs as the source has them.
-                    if self.config.prefix:
-                        l.log("Adding prefix...")
-                        # Add the prefix to the id column
-                        self.data[id_column] = self.config.prefix + self.data[id_column].astype(str)
-
-                        # Add the prefix to the value column of child rows,
-                        # whose values are IDs as well
-                        child_mask = self.data[attribute_column] == childrenClass
-                        self.data.loc[child_mask, value_column] = (
-                            self.config.prefix + self.data.loc[child_mask, value_column].astype(str)
-                        )
-                        l.log("Adding prefix completed.")
-                else:
-                    l.log("No data found. Are the configured input files correct?")
-
-                l.log(f"Loading {self.ontology_name} from "
-                      f"{len(self.config.input_files)} files completed.")
-
-        else:
+        if not self.config.input_files:
             l.log("No input files found. Were they set in the "
                   "configuration file?")
+            return 0
 
+        output_file = os.path.join(
+            self.config.output_folder,
+            self.config.output_file
+        )
+        if isFile(output_file) and self.config.skip_if_present:
+            l.log("Skipping loading since output file is already present.")
+            return 0
+
+        l.log(f"Loading {self.ontology_name} from "
+              f"{len(self.config.input_files)} files...")
+        frames = self._readFrames()
+        l.log("Loading completed.")
+
+        ret = 0
+        if frames:
+            self.data = self._process(frames)
+            ret = len(self.data)
+        else:
+            l.log("No data found. Are the configured input files correct?")
+
+        l.log(f"Loading {self.ontology_name} from "
+              f"{len(self.config.input_files)} files completed.")
         return ret
+
+    def _readFrames(self) -> list[pd.DataFrame]:
+        """
+        Call `_loadFrames()` and return its non-empty frames.
+
+        None entries (unrecognised files) and empty frames are dropped, as
+        pd.concat() would fail on an all-None list. An exception from the
+        adapter is logged before it is passed on, so the log file shows
+        why a run stopped.
+        """
+        try:
+            frames = self._loadFrames()
+        except Exception as e:
+            Logger().log(f"Loading {self.ontology_name} failed: "
+                         f"{type(e).__name__}: {e}")
+            raise
+
+        return [
+            frame for frame in frames
+            if frame is not None and len(frame) > 0
+        ]
+
+    def _process(self, frames: list[pd.DataFrame]) -> pd.DataFrame:
+        """
+        Run the shared steps of `load()` on the frames read from the
+        input: merge, remove rows without an ID or value, `_clean()`,
+        remove duplicates and add the prefix. Returns the result.
+        """
+        l = Logger()
+
+        id_column        = self.config.id_column
+        attribute_column = self.config.attribute_column
+        value_column     = self.config.value_column
+
+        l.log("Merging data...")
+        data = pd.concat(frames, ignore_index=True)
+        l.log("Merging data completed.")
+        l.log(f"Found {len(data)} entities/rows in total.")
+
+        # Rows without an identifier cannot be assigned to a concept;
+        # rows without a value (empty terms, codes or definitions) add no
+        # information and would leave empty cells in the EAV CSV.
+        data = _withoutEmpty(data, id_column, "an ID")
+        data = _withoutEmpty(data, value_column, "values")
+
+        data = self._clean(data)
+
+        # Remove exact duplicates across (id, attribute, value) — e.g. the
+        # same term from several sources; only the first row's additional
+        # info is kept.
+        l.log("Removing duplicate rows...")
+        data = data.drop_duplicates(subset=[
+            id_column,
+            attribute_column,
+            value_column
+        ]).reset_index(drop=True)
+        l.log("Removing duplicate rows completed.")
+        l.log(f"Reduced to {len(data)} entities/rows in total.")
+
+        # The prefix is added last, so the steps above (and _clean())
+        # always see the IDs as the source has them.
+        if self.config.prefix:
+            l.log("Adding prefix...")
+            # Add the prefix to the id column
+            data[id_column] = self.config.prefix + data[id_column].astype(str)
+
+            # Add the prefix to the value column of child rows, whose
+            # values are IDs as well
+            child_mask = data[attribute_column] == childrenClass
+            data.loc[child_mask, value_column] = (
+                self.config.prefix + data.loc[child_mask, value_column].astype(str)
+            )
+            l.log("Adding prefix completed.")
+
+        return data
 
     def to_csv(self) -> int:
         """

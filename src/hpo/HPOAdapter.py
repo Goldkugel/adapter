@@ -55,6 +55,9 @@ class HPOAdapter(BaseAdapter):
         # The HPO is distributed as a single OWL file, so only the first
         # configured input file is used; any further entries are ignored.
         input_file = self.config.input_files[0]
+        if len(self.config.input_files) > 1:
+            l.log(f"Only the first input file is used for HPO; ignoring "
+                  f"{self.config.input_files[1:]}.")
         l.log(f"Loading the Human Phenotype Ontology (HPO) from '{input_file}'...")
 
         path = os.path.join(self.config.input_folder, input_file)

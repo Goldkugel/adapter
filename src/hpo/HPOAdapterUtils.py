@@ -82,76 +82,62 @@ def _activeFilter(variable: str) -> str:
     )
 
 
+# Synonym type marker -> synonym type, checked in this order; the first
+# marker found in the hasSynonymType IRI wins.
+_synonymTypesByMarker = (
+    (owlSourceSynonymTypeLayperson,    laypersonSynonymType),
+    (owlSourceSynonymTypeAbbreviation, abbreviationSynonymType),
+    (owlSourceSynonymTypeObsolete,     obsoleteSynonymType),
+    (owlSourceSynonymTypeUKSpelling,   ukSpellingSynonymType),
+    (owlSourceSynonymTypePlural,       pluralFormSynonymType),
+    (owlSourceSynonymTypeAllelic,      allelicRequirementSynonymType),
+)
+
+# Synonym property marker -> synonym class, checked in this order.
+_synonymClassesByMarker = (
+    (owlSourceExactSynonym,   exactSynonymClass),
+    (owlSourceRelatedSynonym, relatedSynonymClass),
+    (owlSourceBroadSynonym,   broadSynonymClass),
+    (owlSourceNarrowSynonym,  narrowSynonymClass),
+)
+
+
 def getSynonymTypeFromString(string: str = "") -> str:
     """
     Determine the synonym *type* based on markers found in the source string.
 
     The string is the IRI of an oboInOwl:hasSynonymType value (e.g.
-    'http://purl.obolibrary.org/obo/hp#layperson'). The markers are
-    checked in the order below and the first match is returned; a string
-    without a known marker, including "" for a synonym without a typed
-    axiom, gives the direct type. None gives "".
+    'http://purl.obolibrary.org/obo/hp#layperson'). The markers of
+    _synonymTypesByMarker are checked in order and the first match is
+    returned; a string without a known marker, including "" for a synonym
+    without a typed axiom, gives the direct type. None gives "".
     """
-    ret = ""
+    if string is None:
+        return ""
 
-    if string is not None:
-        # Layperson-friendly synonym
-        if owlSourceSynonymTypeLayperson in string:
-            ret = laypersonSynonymType
+    for marker, result in _synonymTypesByMarker:
+        if marker in string:
+            return result
 
-        # Abbreviation synonym
-        elif owlSourceSynonymTypeAbbreviation in string:
-            ret = abbreviationSynonymType
-
-        # Obsolete synonym
-        elif owlSourceSynonymTypeObsolete in string:
-            ret = obsoleteSynonymType
-
-        # UK spelling variant
-        elif owlSourceSynonymTypeUKSpelling in string:
-            ret = ukSpellingSynonymType
-
-        # Plural form variant
-        elif owlSourceSynonymTypePlural in string:
-            ret = pluralFormSynonymType
-
-        # Allelic requirement synonym
-        elif owlSourceSynonymTypeAllelic in string:
-            ret = allelicRequirementSynonymType
-
-        # Direct synonym (no or an unknown type)
-        else:
-            ret = directSynonymType
-
-    return ret
+    # Direct synonym (no or an unknown type)
+    return directSynonymType
 
 
 def getSynonymClassFromString(string: str = "") -> str:
     """
     Determine the synonym *class* (exact, related, broad, narrow)
     based on ontology source markers in the string, i.e. the IRI of the
-    oboInOwl synonym property. Returns "" if no marker matches.
+    oboInOwl synonym property. Returns "" if no marker matches or the
+    string is None.
     """
-    ret = ""
+    if string is None:
+        return ""
 
-    if string is not None:
-        # Exact synonym
-        if owlSourceExactSynonym in string:
-            ret = exactSynonymClass
+    for marker, result in _synonymClassesByMarker:
+        if marker in string:
+            return result
 
-        # Related synonym
-        elif owlSourceRelatedSynonym in string:
-            ret = relatedSynonymClass
-
-        # Broad synonym
-        elif owlSourceBroadSynonym in string:
-            ret = broadSynonymClass
-
-        # Narrow synonym
-        elif owlSourceNarrowSynonym in string:
-            ret = narrowSynonymClass
-
-    return ret
+    return ""
 
 
 def getConceptIDFromString(string: str = "") -> str:
