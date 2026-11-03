@@ -34,9 +34,10 @@ additionalSeparator : str = ", "
 def mergeAdditional(entries) -> dict:
     """
     Merge the additional dicts of duplicate (id, attribute, value) rows into
-    one dict with every key of any of them. A key with the same value in all
-    dicts keeps it; different values are joined with additionalSeparator,
-    each value once and in the order of the rows, e.g. {"class": "exact"}
+    one dict with every key of any of them. A key with only one distinct
+    value keeps it as it is; different values are joined as strings with
+    additionalSeparator, each value once and in the order of the rows,
+    e.g. {"class": "exact"}
     and {"class": "related"} give {"class": "exact, related"}. Entries that
     are not dicts (e.g. a missing value) add nothing.
     """

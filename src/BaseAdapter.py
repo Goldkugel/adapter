@@ -3,9 +3,9 @@ Abstract base class for all ontology adapters.
 
 Defines the shared initialisation (loading and validating the config from a
 YAML file, a dict or a BaseAdapterConfig), the shared load() procedure
-(skip check, merging, cleaning, merging duplicates, prefixing), the abstract _loadFrames()
-interface that every concrete adapter must implement, and the common
-to_csv() method for writing EAV data to disk.
+(skip check, merging, cleaning, merging duplicates, prefixing), the
+abstract _loadFrames() interface that every concrete adapter must
+implement, and the common to_csv() method for writing EAV data to disk.
 """
 
 from __future__ import annotations
@@ -73,10 +73,10 @@ class BaseAdapter(ABC):
     Handles loading and validating shared configuration (input/output
     paths, CSV formatting options, ID prefix) from a YAML file, a dict or
     a BaseAdapterConfig, the shared steps of `load()`, and a common
-    `to_csv()` method for writing the loaded EAV data to disk. Concrete subclasses (e.g. HPOAdapter,
-    SCTAdapter) must implement `_loadFrames()` to read their specific
-    ontology source format, and may override `_clean()` for
-    source-specific cleaning.
+    `to_csv()` method for writing the loaded EAV data to disk. Concrete
+    subclasses (e.g. HPOAdapter, SCTAdapter) must implement
+    `_loadFrames()` to read their specific ontology source format, and
+    may override `_clean()` for source-specific cleaning.
     """
 
     # Name of the ontology, used in log messages.
@@ -370,9 +370,10 @@ class BaseAdapter(ABC):
         data = self._clean(data)
 
         # Merge duplicates across (id, attribute, value) — e.g. the same
-        # term from several sources, or an HPO synonym listed as exact and
-        # as related synonym — into their first row, which gets the
-        # additional info of all of them (see mergeAdditional()).
+        # UMLS string from several sources, or an HPO synonym listed as exact
+        # and as related synonym or with several synonym types — into their
+        # first row, which gets the additional info of all of them (see
+        # mergeAdditional()).
         l.log("Merging duplicate rows...")
         data = self._mergeDuplicates(data)
         l.log("Merging duplicate rows completed.")

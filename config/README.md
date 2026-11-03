@@ -128,7 +128,7 @@ processed.
 ## `umls` — Unified Medical Language System
 
 The UMLS adapter reads RRF files from a UMLS Metathesaurus release. Only
-English, non-suppressed rows are extracted.
+non-suppressed rows are extracted, and from MRCONSO only English ones.
 
 ```yaml
 adapter:

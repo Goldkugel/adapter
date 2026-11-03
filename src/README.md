@@ -13,7 +13,7 @@ src/
 ├── __init__.py            Public API (adapters, BaseAdapterConfig, CSV writers and attribute-name constants)
 ├── BaseAdapter.py         Abstract base class: config loading, shared load() steps and CSV export
 ├── BaseAdapterConfig.py   Pydantic model of one adapter config section
-├── BaseAdapterUtils.py    EAV attribute names, filesystem, CSV and shared reader helpers
+├── BaseAdapterUtils.py    EAV attribute names, filesystem, CSV and shared reader helpers, merging of additional dicts
 ├── hpo/                   Human Phenotype Ontology (OWL)
 ├── sct/                   SNOMED CT (RF2)
 └── umls/                  UMLS Metathesaurus (RRF)
@@ -55,8 +55,10 @@ repository root, one `<Name>AdapterTest.py` per adapter plus
      release files, keeps active rows, and restricts everything to active
      concepts from the Concept file.
    - **UMLS** picks a reader/transformer per RRF file by filename prefix
-     and keeps only English, non-suppressed rows. Concepts without a
-     `PT`/`PN` string get a label from their preferred atom.
+     and keeps only non-suppressed rows (from MRCONSO only English ones).
+     Concepts without a `PT`/`PN` string get a label from their preferred
+     atom. The same string, code or definition from several sources gives
+     one row per source, which the cleaning merges.
 3. **Cleaning** – `load()` concatenates the frames, removes rows without
    an ID or value, calls the adapter's `_clean()` hook (HPO removes hash
    IRIs there) and merges duplicate `(id, attribute, value)` rows into

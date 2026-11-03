@@ -7,8 +7,8 @@ as `umls.csv` by default (see `adapter.umls.output_file` in
 ## Content
 
 IDs are UMLS CUIs with the prefix `UMLS:` (see `adapter.umls.prefix`),
-e.g. `UMLS:C0000005`. Only English, non-suppressed rows (`SUPPRESS = N`)
-are used.
+e.g. `UMLS:C0000005`. Only non-suppressed rows (`SUPPRESS = N`) are used,
+and from `MRCONSO.RRF` only English ones (`LAT = ENG`).
 
 | attribute | value | additional | Source file |
 |---|---|---|---|
@@ -22,9 +22,10 @@ row, but their codes still produce `reference` rows. A concept without a
 `PT` or `PN` string gets exactly one label from its preferred atom: the atom
 with `TS = P`, `STT = PF` and `ISPREF = Y` (if none has all three, the one
 with the most, in that order of importance; ties keep the first in the
-file). Duplicate `(id, attribute, value)` rows are dropped, so when the same
-string or code comes from several sources, only the first source
-abbreviation is kept.
+file). Rows with the same `(id, attribute, value)` are merged: when the same
+string, code or definition comes from several sources, the row's
+`source_abbreviation` lists all of them, joined with `", "` in the order of
+the files and rows, e.g. `MSH, SNOMEDCT_US`.
 
 All fields are quoted and separated by `;` (configurable). The
 `additional` column is a Python dict literal; read it with

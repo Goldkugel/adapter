@@ -243,8 +243,9 @@ def getSynonymsAndTypes(
         for row in g.query(synonymQuery, initNs=_INIT_NS):
             key = (str(row.hpoID), str(row.synclass), str(row.synonym))
 
-            # One row per synonym type; a synonym without a typed axiom
-            # gets one row with the direct type ("" maps to it).
+            # One row per synonym type (load() merges them into one row);
+            # a synonym without a typed axiom gets one row with the direct
+            # type ("" maps to it).
             for syntype in types.get(key, [""]):
                 # Normalize HPO ID format
                 ids.append(getConceptIDFromString(str(row.hpoID)))

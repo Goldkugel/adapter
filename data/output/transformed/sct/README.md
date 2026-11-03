@@ -9,6 +9,9 @@ files are not tracked by version control.
 IDs are SCTIDs with the prefix `SNOMEDCT_US:` (see `adapter.sct.prefix`), e.g.
 `SNOMEDCT_US:404684003`. Only currently active concepts are included, and
 only the latest, active version of each description, relationship and map.
+Duplicate `(id, attribute, value)` rows are merged into one row whose
+`additional` dict holds the keys of all of them (different values joined
+with `", "`).
 
 | attribute | value | additional | Source file |
 |---|---|---|---|

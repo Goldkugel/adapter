@@ -243,7 +243,7 @@ class TestUMLSAdapterLoad:
 
     @patch("os.path.isfile", return_value=False)
     @patch(f"{PATCH_MODULE}.readRRFFileByPath")
-    def test_load_removes_duplicate_id_attribute_value_rows(
+    def test_load_merges_duplicate_id_attribute_value_rows(
         self, mock_read_rrf, mock_is_file, adapter
     ):
         frame = make_frame(
@@ -252,11 +252,20 @@ class TestUMLSAdapterLoad:
             "label",
             ["Same Term", "Same Term", "Different Term"],
         )
+        frame[adapter.config.additional_column] = [
+            {sourceAbbreviation: "MSH"},
+            {sourceAbbreviation: "SNOMEDCT_US"},
+            {sourceAbbreviation: "MSH"},
+        ]
         mock_read_rrf.return_value = frame
 
         ret = adapter.load()
 
         assert ret == 2
+        assert adapter.data[adapter.config.additional_column].tolist() == [
+            {sourceAbbreviation: "MSH, SNOMEDCT_US"},
+            {sourceAbbreviation: "MSH"},
+        ]
 
 
 class TestUMLSAdapterUtilsParsing:
@@ -374,6 +383,31 @@ class TestUMLSAdapterUtilsParsing:
         ]
         # The FN string produces no synonym, only its code a reference.
         assert "Other TTY" not in frame["value"].tolist()
+
+    def test_the_same_string_from_several_sources_gives_one_row_per_source(self, tmp_path):
+        rows = [
+            ["C1", "ENG", "P", "L1", "PF", "S1", "Y", "A1", "", "", "", "MSH", "PT", "D001", "Term", "0", "N", ""],
+            ["C1", "ENG", "P", "L1", "PF", "S2", "Y", "A2", "", "", "", "NCI", "PT", "C123", "Term", "0", "N", ""],
+        ]
+        path = tmp_path / "MRCONSO.RRF"
+        path.write_text("".join("|".join(r) + "|\n" for r in rows), encoding="utf-8")
+
+        frame = readRRFFileByPath(str(path), "id", "attribute", "value", "additional", "utf-8", "|")
+
+        labels = frame[frame["attribute"] == labelClass]
+        assert [a[sourceAbbreviation] for a in labels["additional"]] == ["MSH", "NCI"]
+
+    def test_the_same_definition_from_several_sources_gives_one_row_per_source(self, tmp_path):
+        rows = [
+            ["C1", "A1", "AT1", "", "MSH", "A definition", "N", ""],
+            ["C1", "A2", "AT2", "", "NCI", "A definition", "N", ""],
+        ]
+        path = tmp_path / "MRDEF.RRF"
+        path.write_text("".join("|".join(r) + "|\n" for r in rows), encoding="utf-8")
+
+        frame = readRRFFileByPath(str(path), "id", "attribute", "value", "additional", "utf-8", "|")
+
+        assert [a[sourceAbbreviation] for a in frame["additional"]] == ["MSH", "NCI"]
 
     def test_nocode_atoms_produce_no_reference(self, tmp_path):
         rows = [

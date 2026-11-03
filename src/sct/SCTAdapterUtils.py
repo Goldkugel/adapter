@@ -54,7 +54,7 @@ conceptColumns = [
     rf2SourceId,                # ID (SCTID of the concept)
     rf2SourceEffectiveTime,     # Keep only the latest version per id
     rf2SourceActive,            # Filter: only include if active
-    rf2SourceDefinitionStatusId # Additional
+    rf2SourceDefinitionStatusId # Read, but not used (no EAV rows)
 ]
 
 descriptionColumns = [
@@ -80,7 +80,7 @@ relationshipColumns = [
     rf2SourceSourceId,          # ID
     rf2SourceDestinationId,     # Value, attribute is always "child"
     rf2SourceTypeId,            # Filter: only 116680003 = "is_a"
-    rf2SourceCharacteristicTypeId, # Additional
+    rf2SourceCharacteristicTypeId, # Read, but not used
 ]
 
 simpleMapColumns = [

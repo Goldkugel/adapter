@@ -408,7 +408,9 @@ def getConcepts(
     instead (see _getFallbackLabels). Each source code (CODE) produces
     one reference row carrying the source abbreviation (SAB) as
     additional information; empty codes and the NOCODE placeholder are
-    skipped.
+    skipped. Several rows with the same (id, attribute, value), e.g. the
+    same string from several sources, are all returned; load() merges
+    them into one row with the source abbreviations joined.
     """
     l = Logger()
 
@@ -474,16 +476,11 @@ def getConcepts(
     })
 
     l.log(f"Transforming {len(filtered)} rows into EAV schema completed.")
-    l.log("Removing duplicated rows...")
 
-    result = (
-        pd.concat([label_synonym_rows, fallback_rows, reference_rows], ignore_index=True)
-        .drop_duplicates(subset=[id_column, attribute_column, value_column])
-        .reset_index(drop=True)
-    )
-
-    l.log(f"Removing duplicated rows completed. {len(result)} rows left.")
-    return result
+    # Rows with the same (id, attribute, value), e.g. the same string from
+    # several sources, are merged by load(), which joins their source
+    # abbreviations (see BaseAdapter._mergeDuplicates()).
+    return pd.concat([label_synonym_rows, fallback_rows, reference_rows], ignore_index=True)
 
 
 def getDefinitions(
@@ -499,6 +496,8 @@ def getDefinitions(
     Only non-suppressed rows with a non-empty definition string are kept.
     Each definition produces one row with attribute set to definitionClass,
     and the source abbreviation (SAB) carried as additional information.
+    The same definition from several sources gives one row per source;
+    load() merges them into one row with the source abbreviations joined.
     """
     l = Logger()
 
@@ -520,15 +519,9 @@ def getDefinitions(
     })
 
     l.log(f"Transforming {len(filtered)} rows into EAV schema completed.")
-    l.log("Removing duplicated rows...")
 
-    result = (
-        result
-        .drop_duplicates(subset=[id_column, attribute_column, value_column])
-        .reset_index(drop=True)
-    )
-
-    l.log(f"Removing duplicated rows completed. {len(result)} rows left.")
+    # The same definition from several sources is merged by load(), which
+    # joins their source abbreviations (see BaseAdapter._mergeDuplicates()).
     return result
 
 

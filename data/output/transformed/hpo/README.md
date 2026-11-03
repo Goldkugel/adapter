@@ -8,7 +8,8 @@ here, as `hpo.csv` by default (see `adapter.hpo.output_file` in
 
 IDs are HPO CURIEs such as `HP:0000118` (`adapter.hpo.prefix` is empty, as
 the IDs already carry their prefix). Obsolete and deprecated terms are
-excluded, and duplicate `(id, attribute, value)` rows are dropped.
+excluded. Duplicate `(id, attribute, value)` rows are merged into one row
+whose `additional` dict holds the keys of all of them.
 
 | attribute | value | additional |
 |---|---|---|
@@ -22,7 +23,9 @@ excluded, and duplicate `(id, attribute, value)` rows are dropped.
 For synonyms, `semantic_class` is one of `exact`, `related`, `broad` or
 `narrow`, and `source_type` is one of `layperson`, `abbreviation`,
 `obsolete`, `plural`, `uk`, `allelic`, or `direct` if the synonym has no
-type.
+type. A synonym listed under several classes or with several types gets one
+row whose values are joined with `", "`, e.g. `exact, related` or
+`layperson, abbreviation`.
 
 All fields are quoted and separated by `;` (configurable). The
 `additional` column is a Python dict literal; read it with

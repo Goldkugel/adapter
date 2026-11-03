@@ -110,12 +110,13 @@ Configuration is stored by default in
 config/config.yaml
 ```
 
-The `adapter` section has one subsection per adapter (`hpo`, `sct`, `umls`), each defining:
+The `adapter` section has one subsection per adapter (`hpo`, `sct`, `umls`), each of which can set:
 
 - input folder and input files
 - output folder and output filename
 - output delimiter, input separator and encoding
 - ID prefix
+- whether to skip loading if the output file already exists
 - EAV column names
 
 All subsections share the same schema (`BaseAdapterConfig`); fields that are not set fall back to its defaults. The `logger` section of the same file configures the logger package (see [Logging](#logging)). Instead of a YAML file, an adapter can also be given a dict or a `BaseAdapterConfig` (see [Using an Adapter](#using-an-adapter)). All fields are described in [config/README.md](config/README.md).
@@ -150,7 +151,7 @@ Full release files contain every historical version of each component. The adapt
 
 ### UMLS
 
-The UMLS adapter processes RRF release files (MRCONSO, MRDEF) and extracts concepts, synonyms, definitions, and source references into the same EAV format used by the other adapters. Only English, non-suppressed rows are used; other configured RRF files are skipped. Every concept gets a label: from its `PT`/`PN` strings, or otherwise from its preferred atom. CUIs are written with the configured prefix (`UMLS:` by default), the form HPO uses in its cross-references.
+The UMLS adapter processes RRF release files (MRCONSO, MRDEF) and extracts concepts, synonyms, definitions, and source references into the same EAV format used by the other adapters. Only non-suppressed rows are used, and from MRCONSO only English ones; other configured RRF files are skipped. Every concept gets a label: from its `PT`/`PN` strings, or otherwise from its preferred atom. CUIs are written with the configured prefix (`UMLS:` by default), the form HPO uses in its cross-references.
 
 ---
 
@@ -165,7 +166,7 @@ All adapters produce a normalized Entity–Attribute–Value table with the foll
 | HP:0000118 | synonym | Clinical abnormality | {'semantic_class': 'exact', 'source_type': 'direct'} |
 | HP:0000118 | child | HP:0000119 | {} |
 
-The `additional` column holds a dictionary with source-specific metadata, e.g. the synonym class and type for HPO, the case significance or map refset for SNOMED CT, or the source vocabulary for UMLS. It is written as a Python dict literal (single quotes, not JSON), so read it back with `ast.literal_eval`. Rows with the same `id`, `attribute` and `value` (e.g. the same term from several sources, or an HPO synonym listed both as exact and as related synonym) are merged into one row whose dictionary holds the keys of all of them; different values of a key are joined with `", "` in the order of the rows, e.g. `{'semantic_class': 'exact, related'}`. A `child` row means that `value` is a direct child (subclass) of `id`.
+The `additional` column holds a dictionary with source-specific metadata, e.g. the synonym class and type for HPO, the case significance or map refset for SNOMED CT, or the source vocabulary for UMLS. It is written as a Python dict literal (single quotes, not JSON), so read it back with `ast.literal_eval`. Rows with the same `id`, `attribute` and `value` (e.g. the same UMLS string or code from several sources, or an HPO synonym listed both as exact and as related synonym, or with several synonym types) are merged into one row whose dictionary holds the keys of all of them; different values of a key are joined with `", "` in the order of the rows, e.g. `{'semantic_class': 'exact, related'}` or `{'source_abbreviation': 'MSH, SNOMEDCT_US'}`. A `child` row means that `value` is a direct child (subclass) of `id`.
 
 All fields are quoted, and the field delimiter is configurable (`;` by default).
 
@@ -215,7 +216,7 @@ The resulting CSV is written to the configured output directory.
 
 To support another ontology:
 
-1. Subclass `BaseAdapter`, set `ontology_name` (used in log messages), `config_section` (the key under `adapter` in the configuration, e.g. `hpo`) and `default_prefix`, and implement `_loadFrames()` to return the EAV rows read from the input files. The shared `load()` merges and cleans them and adds the prefix; override `_clean()` for source-specific cleaning.
+1. Subclass `BaseAdapter`, set `ontology_name` (used in log messages), `config_section` (the key under `adapter` in the configuration, e.g. `hpo`) and `default_prefix`, and implement `_loadFrames()` to return the EAV rows read from the input files. The shared `load()` merges and cleans them, merges duplicate rows and adds the prefix; override `_clean()` for source-specific cleaning.
 2. Use the shared EAV attribute-name constants from `BaseAdapterUtils` (e.g. `labelClass`, `synonymClass`) to keep attribute names consistent across adapters.
 3. Add a configuration section for the new adapter to `config/config.yaml`, following the same structure as the existing adapter sections.
 4. Export the new adapter class from `src/__init__.py`.
