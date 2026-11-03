@@ -165,7 +165,7 @@ All adapters produce a normalized Entity–Attribute–Value table with the foll
 | HP:0000118 | synonym | Clinical abnormality | {'semantic_class': 'exact', 'source_type': 'direct'} |
 | HP:0000118 | child | HP:0000119 | {} |
 
-The `additional` column holds a dictionary with source-specific metadata, e.g. the synonym class and type for HPO, the case significance or map refset for SNOMED CT, or the source vocabulary for UMLS. It is written as a Python dict literal (single quotes, not JSON), so read it back with `ast.literal_eval`. A `child` row means that `value` is a direct child (subclass) of `id`.
+The `additional` column holds a dictionary with source-specific metadata, e.g. the synonym class and type for HPO, the case significance or map refset for SNOMED CT, or the source vocabulary for UMLS. It is written as a Python dict literal (single quotes, not JSON), so read it back with `ast.literal_eval`. Rows with the same `id`, `attribute` and `value` (e.g. the same term from several sources, or an HPO synonym listed both as exact and as related synonym) are merged into one row whose dictionary holds the keys of all of them; different values of a key are joined with `", "` in the order of the rows, e.g. `{'semantic_class': 'exact, related'}`. A `child` row means that `value` is a direct child (subclass) of `id`.
 
 All fields are quoted, and the field delimiter is configurable (`;` by default).
 

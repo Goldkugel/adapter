@@ -144,6 +144,15 @@ class TestHPOAdapterLoad:
         assert id_column.notna().all()
         assert (id_column != "").all()
 
+    def test_load_merges_duplicate_rows(self, loaded_adapter):
+        adapter, _ = loaded_adapter
+        key = [
+            adapter.config.id_column,
+            adapter.config.attribute_column,
+            adapter.config.value_column,
+        ]
+        assert not adapter.data.duplicated(subset=key).any()
+
     def test_load_removes_rows_with_a_hash_in_the_id(self, loaded_adapter):
         adapter, _ = loaded_adapter
         id_column = adapter.data[adapter.config.id_column]

@@ -3,9 +3,10 @@ Shared utilities for all ontology adapters.
 
 Provides EAV attribute-name constants (labelClass, synonymClass, etc.),
 filesystem helpers (isFile, isFolder, createFolder), CSV writing helpers
-(writeCSV, writeHugeCSV), and helpers shared by the source-specific
+(writeCSV, writeHugeCSV), helpers shared by the source-specific
 readers (additionalFrom, readFileByPrefix) used by BaseAdapter and its
-concrete subclasses.
+concrete subclasses, and mergeAdditional, which combines the additional
+information of duplicate rows.
 """
 
 from __future__ import annotations
@@ -25,6 +26,34 @@ commentClass    : str = "comment"
 referenceClass  : str = "reference"
 childrenClass   : str = "child"
 synonymClass    : str = "synonym"
+
+# Joins the different values of one key when the additional information of
+# duplicate rows is merged (see mergeAdditional()), e.g. "exact, related".
+additionalSeparator : str = ", "
+
+def mergeAdditional(entries) -> dict:
+    """
+    Merge the additional dicts of duplicate (id, attribute, value) rows into
+    one dict with every key of any of them. A key with the same value in all
+    dicts keeps it; different values are joined with additionalSeparator,
+    each value once and in the order of the rows, e.g. {"class": "exact"}
+    and {"class": "related"} give {"class": "exact, related"}. Entries that
+    are not dicts (e.g. a missing value) add nothing.
+    """
+    values: dict = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        for key, value in entry.items():
+            known = values.setdefault(key, [])
+            if value not in known:
+                known.append(value)
+
+    return {
+        key: known[0] if len(known) == 1 else additionalSeparator.join(str(v) for v in known)
+        for key, known in values.items()
+    }
+
 
 def additionalFrom(values: pd.Series, key: str):
     """

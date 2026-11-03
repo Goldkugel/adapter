@@ -3,7 +3,7 @@ Abstract base class for all ontology adapters.
 
 Defines the shared initialisation (loading and validating the config from a
 YAML file, a dict or a BaseAdapterConfig), the shared load() procedure
-(skip check, merging, cleaning, prefixing), the abstract _loadFrames()
+(skip check, merging, cleaning, merging duplicates, prefixing), the abstract _loadFrames()
 interface that every concrete adapter must implement, and the common
 to_csv() method for writing EAV data to disk.
 """
@@ -13,7 +13,7 @@ from __future__ import annotations
 from abc                import ABC, abstractmethod
 from pydantic           import ValidationError
 from .BaseAdapterConfig import BaseAdapterConfig
-from .BaseAdapterUtils  import isFile, isFolder, createFolder, writeHugeCSV, childrenClass
+from .BaseAdapterUtils  import isFile, isFolder, createFolder, writeHugeCSV, childrenClass, mergeAdditional
 from logger             import Logger, LoggerConfig
 import pandas           as pd
 import yaml
@@ -246,10 +246,34 @@ class BaseAdapter(ABC):
         Apply source-specific cleaning to the merged EAV data.
 
         Called by `load()` after rows without an ID or value are removed,
-        and before duplicates are removed and the prefix is added. Does
+        and before duplicates are merged and the prefix is added. Does
         nothing by default; subclasses override it as needed.
         """
         return data
+
+    def _mergeDuplicates(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Merge the rows with the same (id, attribute, value) into their first
+        row and merge their additional info into it (see mergeAdditional());
+        rows without duplicates are kept as they are.
+        """
+        key        = [self.config.id_column, self.config.attribute_column, self.config.value_column]
+        additional = self.config.additional_column
+
+        duplicated = data.duplicated(subset=key, keep=False)
+        first      = ~data.duplicated(subset=key, keep="first")
+
+        if duplicated.any() and additional in data.columns:
+            merged = data[duplicated].groupby(key, sort=False)[additional].agg(
+                lambda entries: mergeAdditional(entries.tolist()))
+
+            targets = data[duplicated & first]
+            values  = merged.reindex(pd.MultiIndex.from_frame(targets[key])).tolist()
+            column  = data[additional].astype(object)
+            column.loc[targets.index] = pd.Series(values, index=targets.index, dtype=object)
+            data    = data.assign(**{additional: column})
+
+        return data[first].reset_index(drop=True)
 
     def load(self) -> int:
         """
@@ -257,7 +281,7 @@ class BaseAdapter(ABC):
         configuration, and store the EAV rows in self.data.
 
         Reads the input via `_loadFrames()`, merges the frames, removes
-        rows without an ID or value, applies `_clean()`, removes
+        rows without an ID or value, applies `_clean()`, merges
         duplicate (id, attribute, value) rows and adds the configured
         prefix. Does nothing if no input files are configured, or if
         `skip_if_present` is set and the output file already exists.
@@ -324,7 +348,7 @@ class BaseAdapter(ABC):
         """
         Run the shared steps of `load()` on the frames read from the
         input: merge, remove rows without an ID or value, `_clean()`,
-        remove duplicates and add the prefix. Returns the result.
+        merge duplicates and add the prefix. Returns the result.
         """
         l = Logger()
 
@@ -345,16 +369,13 @@ class BaseAdapter(ABC):
 
         data = self._clean(data)
 
-        # Remove exact duplicates across (id, attribute, value) — e.g. the
-        # same term from several sources; only the first row's additional
-        # info is kept.
-        l.log("Removing duplicate rows...")
-        data = data.drop_duplicates(subset=[
-            id_column,
-            attribute_column,
-            value_column
-        ]).reset_index(drop=True)
-        l.log("Removing duplicate rows completed.")
+        # Merge duplicates across (id, attribute, value) — e.g. the same
+        # term from several sources, or an HPO synonym listed as exact and
+        # as related synonym — into their first row, which gets the
+        # additional info of all of them (see mergeAdditional()).
+        l.log("Merging duplicate rows...")
+        data = self._mergeDuplicates(data)
+        l.log("Merging duplicate rows completed.")
         l.log(f"Reduced to {len(data)} entities/rows in total.")
 
         # The prefix is added last, so the steps above (and _clean())

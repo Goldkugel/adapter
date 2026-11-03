@@ -9,7 +9,7 @@ Contains five test classes:
 - TestBaseAdapterPrefix: the adapter's default prefix and the configured
   prefix.
 - TestBaseAdapterLoad: the shared steps of load() (merging, cleaning,
-  the _clean() hook, prefixing).
+  the _clean() hook, merging duplicate rows, prefixing).
 - TestBaseAdapterToCSV: writing self.data to the configured output file.
 """
 
@@ -207,6 +207,38 @@ class TestBaseAdapterLoad:
             ["DUMMY:1", labelClass,    "A"],
             ["DUMMY:1", childrenClass, "DUMMY:2"],
         ]
+
+    @patch("os.path.isfile", return_value=False)
+    def test_duplicate_rows_are_merged_into_the_first_one(self, mock_is_file, tmp_path):
+        path  = write_config(tmp_path, {"adapter": {"dummy": {"input_files": ["x"], "prefix": ""}}})
+        frame = make_frame(["1", "2", "1", "1", "2"], ["synonym"] * 5,
+                           ["Same", "Other", "Same", "Same", "Other"])
+        frame["additional"] = [
+            {"semantic_class": "exact",   "source_type": "layperson"},
+            {"semantic_class": "exact"},
+            {"semantic_class": "related", "source_type": "layperson"},
+            {"semantic_class": "exact",   "source_type": "abbreviation"},
+            {"semantic_class": "exact"},
+        ]
+        adapter = DummyAdapter(path, [frame])
+
+        assert adapter.load() == 2
+        assert adapter.data[["id", "value"]].values.tolist() == [["1", "Same"], ["2", "Other"]]
+        assert adapter.data["additional"].tolist() == [
+            {"semantic_class": "exact, related", "source_type": "layperson, abbreviation"},
+            {"semantic_class": "exact"},
+        ]
+
+    @patch("os.path.isfile", return_value=False)
+    def test_rows_without_duplicates_keep_their_additional_dict(self, mock_is_file, tmp_path):
+        path  = write_config(tmp_path, {"adapter": {"dummy": {"input_files": ["x"], "prefix": ""}}})
+        frame = make_frame(["1", "2"], [labelClass, labelClass], ["A", "B"])
+        frame["additional"] = [{"source": "MSH"}, {}]
+        adapter = DummyAdapter(path, [frame])
+
+        adapter.load()
+
+        assert adapter.data["additional"].tolist() == [{"source": "MSH"}, {}]
 
     @patch("os.path.isfile", return_value=False)
     def test_empty_prefix_leaves_ids_unchanged(self, mock_is_file, tmp_path):

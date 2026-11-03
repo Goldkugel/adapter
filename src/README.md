@@ -59,7 +59,9 @@ repository root, one `<Name>AdapterTest.py` per adapter plus
      `PT`/`PN` string get a label from their preferred atom.
 3. **Cleaning** – `load()` concatenates the frames, removes rows without
    an ID or value, calls the adapter's `_clean()` hook (HPO removes hash
-   IRIs there) and drops duplicate `(id, attribute, value)` rows.
+   IRIs there) and merges duplicate `(id, attribute, value)` rows into
+   one, whose `additional` dict holds the keys of all of them (different
+   values of a key joined with `", "`, see `mergeAdditional()`).
 4. **Prefixing** – `load()` adds the configured `prefix` to every ID and to
    the value of every `child` row.
 5. **Export** – `to_csv()` writes `self.data` to

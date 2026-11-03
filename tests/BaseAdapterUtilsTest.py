@@ -1,13 +1,14 @@
 """
 Tests for BaseAdapterUtils.
 
-Contains three test classes:
+Contains four test classes:
 - TestFilesystemHelpers: isFile, isFolder and createFolder.
 - TestWriteCSV: the CSV format (quoting, delimiter, encoding, the
   additional dict) and the no-data / no-file paths.
 - TestWriteHugeCSV: the atomic write via a temporary file, including
   cleaning up the temporary file when nothing is written or the write
   fails.
+- TestMergeAdditional: merging the additional dicts of duplicate rows.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ import pandas as pd
 from unittest.mock        import patch
 from src.BaseAdapterUtils import (
     isFile, isFolder, createFolder, writeCSV, writeHugeCSV,
-    labelClass, synonymClass,
+    labelClass, synonymClass, mergeAdditional, additionalSeparator,
 )
 
 
@@ -159,3 +160,41 @@ class TestWriteHugeCSV:
         assert writeHugeCSV(make_frame(), "") == 0
         assert list(tmp_path.iterdir()) == []
 
+
+class TestMergeAdditional:
+
+    def test_different_values_are_joined_in_row_order(self):
+        merged = mergeAdditional([
+            {"semantic_class": "exact",   "source_type": "layperson"},
+            {"semantic_class": "related", "source_type": "layperson"},
+        ])
+
+        assert merged == {
+            "semantic_class": "exact" + additionalSeparator + "related",
+            "source_type"   : "layperson",
+        }
+        assert merged["semantic_class"] == "exact, related"
+
+    def test_every_value_is_joined_once(self):
+        merged = mergeAdditional([{"k": "a"}, {"k": "b"}, {"k": "a"}, {"k": "b"}])
+
+        assert merged == {"k": "a, b"}
+
+    def test_keys_of_only_some_entries_are_kept(self):
+        merged = mergeAdditional([{"a": "1"}, {"b": "2"}, {}])
+
+        assert merged == {"a": "1", "b": "2"}
+
+    def test_equal_values_keep_their_type(self):
+        assert mergeAdditional([{"n": 1}, {"n": 1}]) == {"n": 1}
+
+    def test_entries_that_are_not_dicts_add_nothing(self):
+        assert mergeAdditional([float("nan"), None, {"a": "1"}]) == {"a": "1"}
+        assert mergeAdditional([]) == {}
+
+    def test_entries_are_not_changed(self):
+        entries = [{"a": "1"}, {"a": "2"}]
+
+        mergeAdditional(entries)
+
+        assert entries == [{"a": "1"}, {"a": "2"}]
