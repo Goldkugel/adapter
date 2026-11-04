@@ -172,8 +172,8 @@ def _readRF2File(
         ret = ret.sort_values(rf2SourceEffectiveTime, ascending=False) \
             .drop_duplicates(subset=[rf2SourceId], keep="first")
 
-    l.printFileProcessingEnd(path)
     l.log(f"{len(ret)} entities of SNOMED CT extracted.")
+    l.printFileProcessingEnd(path)
     return ret
 
 

@@ -294,8 +294,8 @@ def _readRRFFile(
     # read_csv returns usecols in file order; restore the requested order.
     ret = ret[usecols]
 
-    l.printFileProcessingEnd(path)
     l.log(f"{len(ret)} entities of UMLS extracted.")
+    l.printFileProcessingEnd(path)
     return ret
 
 

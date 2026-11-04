@@ -281,11 +281,12 @@ def writeHugeCSV(
     # Build the temporary file path by appending ".tmp" to the target path.
     tmpfile = file + ".tmp"
 
-    l.log("Writing in temporary file first...")
+    l.log("Writing to a temporary file first...")
 
     try:
         # Write to the temporary file first, reusing writeCSV's logic.
         ret = writeCSV(data, tmpfile, separator, encoding)
+        l.log("Writing to a temporary file first completed.")
 
         # Only replace the original file if the temporary write succeeded.
         if ret > 0:

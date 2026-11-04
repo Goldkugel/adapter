@@ -262,7 +262,7 @@ class TestBaseAdapterLoad:
                 adapter.load()
 
         messages = [c.args[0] for c in mock_log.call_args_list]
-        assert "Loading dummy failed: OSError: disk gone" in messages
+        assert "Loading dummy failed: OSError: disk gone." in messages
         assert adapter.data is None
 
     @patch("os.path.isfile", return_value=False)

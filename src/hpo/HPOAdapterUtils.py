@@ -185,7 +185,7 @@ def getSynonymsAndTypes(
     l = Logger()
 
     if hpo is not None:
-        l.log("Get synonyms and types of the Human Phenotype Ontology (HPO)...")
+        l.log("Getting the synonyms and types of the Human Phenotype Ontology (HPO)...")
 
         # Convert Owlready2 ontology into an RDFLib graph
         g = hpo.world.as_rdflib_graph()
@@ -268,6 +268,7 @@ def getSynonymsAndTypes(
         })
 
         l.log(f"{len(ret)} entities of the Human Phenotype Ontology (HPO) extracted.")
+        l.log("Getting the synonyms and types of the Human Phenotype Ontology (HPO) completed.")
 
     return ret
 
@@ -295,7 +296,7 @@ def _extract(
     l = Logger()
 
     if hpo is not None:
-        l.log(f"Get {description} of the Human Phenotype Ontology (HPO)...")
+        l.log(f"Getting the {description} of the Human Phenotype Ontology (HPO)...")
 
         g = hpo.world.as_rdflib_graph()
 
@@ -316,6 +317,7 @@ def _extract(
         })
 
         l.log(f"{len(ret)} entities of the Human Phenotype Ontology (HPO) extracted.")
+        l.log(f"Getting the {description} of the Human Phenotype Ontology (HPO) completed.")
 
     return ret
 

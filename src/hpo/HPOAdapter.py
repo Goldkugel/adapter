@@ -62,6 +62,7 @@ class HPOAdapter(BaseAdapter):
 
         path = os.path.join(self.config.input_folder, input_file)
         hpo = get_ontology(path).load()
+        l.log(f"Loading the Human Phenotype Ontology (HPO) from '{input_file}' completed.")
 
         extractors = [
             getLabels,

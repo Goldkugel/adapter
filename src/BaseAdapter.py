@@ -295,8 +295,8 @@ class BaseAdapter(ABC):
         l = Logger()
 
         if not self.config.input_files:
-            l.log("No input files found. Were they set in the "
-                  "configuration file?")
+            l.log("No input files found, they must be set in the "
+                  "configuration file.")
             return 0
 
         output_file = os.path.join(
@@ -309,15 +309,16 @@ class BaseAdapter(ABC):
 
         l.log(f"Loading {self.ontology_name} from "
               f"{len(self.config.input_files)} files...")
+        l.log("Reading the input files...")
         frames = self._readFrames()
-        l.log("Loading completed.")
+        l.log("Reading the input files completed.")
 
         ret = 0
         if frames:
             self.data = self._process(frames)
             ret = len(self.data)
         else:
-            l.log("No data found. Are the configured input files correct?")
+            l.log("No data found, check the configured input files.")
 
         l.log(f"Loading {self.ontology_name} from "
               f"{len(self.config.input_files)} files completed.")
@@ -336,7 +337,7 @@ class BaseAdapter(ABC):
             frames = self._loadFrames()
         except Exception as e:
             Logger().log(f"Loading {self.ontology_name} failed: "
-                         f"{type(e).__name__}: {e}")
+                         f"{type(e).__name__}: {e}.")
             raise
 
         return [
