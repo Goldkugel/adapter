@@ -1,10 +1,9 @@
 """
 Utility functions and constants for the HPO adapter.
 
-Provides SPARQL-based extractors for labels, definitions, comments,
-children, references, and synonyms from an OWL-format HPO ontology,
-as well as helper functions for normalising concept IDs and synonym
-class/type strings.
+SPARQL-based extractors for labels, definitions, comments, children,
+references and synonyms of an OWL-format HPO, and helpers normalising
+concept IDs and synonym class/type strings.
 """
 
 from __future__ import annotations
@@ -15,16 +14,14 @@ from owlready2          import Ontology
 from rdflib             import Namespace, RDFS, XSD
 import pandas           as pd
 
-# --- Synonym class constants ---
-
+# Synonym classes (key semanticClass of the additional dict).
 semanticClass           : str = "semantic_class"
 exactSynonymClass       : str = "exact"
 relatedSynonymClass     : str = "related"
 broadSynonymClass       : str = "broad"
 narrowSynonymClass      : str = "narrow"
 
-# --- Synonym type constants ---
-
+# Synonym types (key sourceType of the additional dict).
 sourceType                    : str = "source_type"
 expertSynonymType             : str = "expert"
 laypersonSynonymType          : str = "layperson"
@@ -37,8 +34,7 @@ allelicRequirementSynonymType : str = "allelic"
 # Synonym defined directly in the OWL Class section, rather than via an Axiom.
 directSynonymType             : str = "direct"
 
-# --- OWL source property names (used for string matching) ---
-
+# Markers matched against the OWL property and synonym type IRIs.
 owlSourceExactSynonym    = "hasExactSynonym"
 owlSourceRelatedSynonym  = "hasRelatedSynonym"
 owlSourceBroadSynonym    = "hasBroadSynonym"
@@ -50,8 +46,6 @@ owlSourceSynonymTypeObsolete     = "obsolete_synonym"
 owlSourceSynonymTypePlural       = "plural_form"
 owlSourceSynonymTypeUKSpelling   = "uk_spelling"
 owlSourceSynonymTypeAllelic      = "allelic_requirement"
-
-# --- Common ontology namespaces used for RDF / OWL processing ---
 
 OBO      = Namespace("http://purl.obolibrary.org/obo/")
 OBOINOWL = Namespace("http://www.geneontology.org/formats/oboInOwl#")
@@ -71,9 +65,9 @@ _INIT_NS = {
 
 def _activeFilter(variable: str) -> str:
     """
-    SPARQL filters excluding a deprecated or obsolete ?variable. HPO marks
-    terms either with owl:deprecated true or with oboInOwl:is_obsolete,
-    whose value is compared as a string since it is not always typed.
+    SPARQL filters excluding a deprecated or obsolete ?variable. HPO uses
+    owl:deprecated or oboInOwl:is_obsolete; the latter is compared as a
+    string since it is not always typed.
     """
     return (
         f"FILTER NOT EXISTS {{ ?{variable} owl:deprecated true }}\n"
@@ -104,13 +98,10 @@ _synonymClassesByMarker = (
 
 def getSynonymTypeFromString(string: str = "") -> str:
     """
-    Determine the synonym *type* based on markers found in the source string.
-
-    The string is the IRI of an oboInOwl:hasSynonymType value (e.g.
-    'http://purl.obolibrary.org/obo/hp#layperson'). The markers of
-    _synonymTypesByMarker are checked in order and the first match is
-    returned; a string without a known marker, including "" for a synonym
-    without a typed axiom, gives the direct type. None gives "".
+    Map an oboInOwl:hasSynonymType IRI (e.g. '.../obo/hp#layperson') to a
+    synonym type. The first marker of _synonymTypesByMarker found wins;
+    no known marker (including "" for an untyped synonym) gives the direct
+    type, None gives "".
     """
     if string is None:
         return ""
@@ -119,16 +110,14 @@ def getSynonymTypeFromString(string: str = "") -> str:
         if marker in string:
             return result
 
-    # Direct synonym (no or an unknown type)
     return directSynonymType
 
 
 def getSynonymClassFromString(string: str = "") -> str:
     """
-    Determine the synonym *class* (exact, related, broad, narrow)
-    based on ontology source markers in the string, i.e. the IRI of the
-    oboInOwl synonym property. Returns "" if no marker matches or the
-    string is None.
+    Map the IRI of an oboInOwl synonym property to the synonym class
+    (exact, related, broad, narrow). Returns "" if no marker matches or
+    the string is None.
     """
     if string is None:
         return ""
@@ -148,19 +137,14 @@ def getConceptIDFromString(string: str = "") -> str:
         'http://purl.obolibrary.org/obo/HP_0000118'
         -> 'HP:0000118'
 
-    Strings without a "/" (e.g. the IDs rdflib gives blank nodes) and
-    None return "", so their rows are later removed by BaseAdapter.load()
-    as rows without an ID. Hash IRIs keep their "#" (e.g.
+    Strings without a "/" (e.g. rdflib blank node IDs) and None give "",
+    so load() drops their rows. Hash IRIs keep their "#" (e.g.
     'oboInOwl#hasDbXref') and are removed by HPOAdapter._clean().
     """
     ret = ""
 
     if string is not None and "/" in string:
-        # Extract the last path segment
         ret = string.split("/")[-1]
-
-        # Convert underscore-based IDs to colon-based IDs
-        # (e.g. HP_0000118 -> HP:0000118)
         if "_" in ret:
             ret = ret.replace("_", ":")
 
@@ -175,11 +159,8 @@ def getSynonymsAndTypes(
     additional_column: str = ""
 ) -> pd.DataFrame | None:
     """
-    Extract all synonyms for HPO concepts, including:
-    - Direct synonym annotations
-    - Axiom-annotated synonyms with explicit synonym types
-
-    Returns a normalized DataFrame suitable for downstream processing.
+    Extract the synonyms of active HPO concepts as EAV rows, with their
+    synonym class and type in the additional column.
     """
     ret = None
     l = Logger()
@@ -187,21 +168,12 @@ def getSynonymsAndTypes(
     if hpo is not None:
         l.log("Getting the synonyms and types of the Human Phenotype Ontology (HPO)...")
 
-        # Convert Owlready2 ontology into an RDFLib graph
         g = hpo.world.as_rdflib_graph()
 
-        # In the RDF serialisation, every synonym is stored as a direct
-        # triple; synonyms with extra annotations additionally have an
-        # owl:Axiom that repeats source/property/target. The synonyms
-        # come from the direct triples (so each is found once, not once
-        # more via its axiom), and their types from the axioms.
-        #
-        # Both are fetched with separate queries and joined in Python.
-        # Joining them inside SPARQL (an OPTIONAL axiom pattern) makes
-        # rdflib re-evaluate the axiom pattern for every synonym and
-        # scan all axioms each time, which takes days on the full HPO.
-
-        # Direct synonyms of active (not deprecated or obsolete) concepts.
+        # Every synonym is a direct triple; annotated ones also have an
+        # owl:Axiom repeating it. Synonyms come from the triples (found once
+        # each), types from the axioms. They are joined in Python: an
+        # OPTIONAL join in SPARQL makes rdflib take days on the full HPO.
         synonymQuery = """
         SELECT DISTINCT ?hpoID ?synonym ?synclass WHERE
         {
@@ -216,7 +188,6 @@ def getSynonymsAndTypes(
         }
         """
 
-        # Synonym types (e.g. layperson, abbreviation) from the axioms.
         # Starting from hasSynonymType keeps this to the typed axioms.
         typeQuery = """
         SELECT DISTINCT ?hpoID ?synonym ?synclass ?syntype WHERE
@@ -228,14 +199,12 @@ def getSynonymsAndTypes(
         }
         """
 
-        # Collect the types of each (concept, class, synonym) triple.
         # A synonym can have more than one type.
         types = {}
         for row in g.query(typeQuery, initNs=_INIT_NS):
             key = (str(row.hpoID), str(row.synclass), str(row.synonym))
             types.setdefault(key, []).append(str(row.syntype))
 
-        # Accumulate query results into Python lists
         ids        = []
         values     = []
         additional = []
@@ -243,23 +212,15 @@ def getSynonymsAndTypes(
         for row in g.query(synonymQuery, initNs=_INIT_NS):
             key = (str(row.hpoID), str(row.synclass), str(row.synonym))
 
-            # One row per synonym type (load() merges them into one row);
-            # a synonym without a typed axiom gets one row with the direct
-            # type ("" maps to it).
+            # One row per type (load() merges them); "" gives the direct type.
             for syntype in types.get(key, [""]):
-                # Normalize HPO ID format
                 ids.append(getConceptIDFromString(str(row.hpoID)))
-
-                # Raw synonym literal
                 values.append(row.synonym)
-
-                # Map RDF property and type to internal class and type
                 additional.append({
                     semanticClass : getSynonymClassFromString(str(row.synclass)),
                     sourceType    : getSynonymTypeFromString(syntype),
                 })
 
-        # Build a standardized DataFrame representation
         ret = pd.DataFrame({
             id_column         : ids,
             attribute_column  : [synonymClass] * len(ids),
@@ -285,12 +246,10 @@ def _extract(
     additional_column: str
 ) -> pd.DataFrame | None:
     """
-    Run `query` on the RDF view of `hpo` and turn every result row into
-    one EAV row with the given attribute and an empty additional dict.
-
-    `toIdAndValue` maps a result row to its (id, value) pair. Returns None
-    if `hpo` is None. `description` names what is extracted in the log
-    messages (e.g. "labels").
+    Run `query` on `hpo` and turn every result row into an EAV row with
+    `attribute` and an empty additional dict. `toIdAndValue` maps a result
+    row to (id, value); `description` names it in the logs. None if `hpo`
+    is None.
     """
     ret = None
     l = Logger()
@@ -308,7 +267,6 @@ def _extract(
             ids.append(concept_id)
             values.append(value)
 
-        # Build a standardized DataFrame representation
         ret = pd.DataFrame({
             id_column        : ids,
             attribute_column : [attribute] * len(ids),
@@ -330,24 +288,18 @@ def getComments(
     additional_column: str = ""
 ) -> pd.DataFrame | None:
     """
-    Extract rdfs:comment annotations for HPO concepts.
-
-    Includes:
-    - Direct comment annotations
-    - Axiom-based comment annotations
+    Extract the rdfs:comment annotations (direct and axiom-based) of HPO
+    concepts.
     """
-    # SPARQL query retrieves comments from both direct and axiom-based
-    # sources; DISTINCT collapses a comment found by both branches
+    # DISTINCT collapses a comment found by both branches.
     query = """
         SELECT DISTINCT ?hpoID ?comment WHERE {
     """ + _activeFilter("hpoID") + """
             {
-                # Direct comment annotation
                 ?hpoID rdfs:comment ?comment .
             }
             UNION
             {
-                # Axiom-based comment annotation
                 ?axiom rdf:type owl:Axiom .
                 ?axiom owl:annotatedSource ?hpoID .
                 ?axiom owl:annotatedProperty rdfs:comment .
@@ -373,8 +325,7 @@ def getDefinitions(
     Extract textual definitions for HPO concepts
     (obo:IAO_0000115 annotations).
     """
-    # Retrieve definitions from direct and axiom-based annotations;
-    # DISTINCT collapses a definition found by both branches
+    # Direct and axiom-based; DISTINCT collapses one found by both.
     query = """
         SELECT DISTINCT ?hpoID ?definition WHERE {
     """ + _activeFilter("hpoID") + """
@@ -407,10 +358,9 @@ def getLabels(
     """
     Extract rdfs:label annotations for HPO concepts.
     """
-    # Simple query for labels. This also matches labelled entities
-    # that are not HPO concepts. Those with a hash IRI (e.g.
-    # oboInOwl#hasDbXref) are removed by HPOAdapter._clean(); those
-    # with an OBO IRI (e.g. obo:IAO_0000115, "definition") are kept.
+    # Also matches labelled non-concepts: hash IRIs (e.g.
+    # oboInOwl#hasDbXref) are removed by HPOAdapter._clean(), OBO IRIs
+    # (e.g. obo:IAO_0000115, "definition") are kept.
     query = """
         SELECT ?hpoID ?label WHERE {
     """ + _activeFilter("hpoID") + """
@@ -434,14 +384,11 @@ def getChildren(
     """
     Extract parent–child (subClassOf) relationships from the ontology.
 
-    Each row represents:
-        parent HPO ID -> child HPO ID
-    i.e. the parent is the id and the child the value (attribute
-    childrenClass), as in the SNOMED CT adapter.
+    The parent is the id and the child the value, as in the SNOMED CT
+    adapter.
     """
-    # Retrieve all subclass relationships. Superclasses that are
-    # anonymous restrictions (blank nodes) yield an empty parent ID
-    # and are removed by BaseAdapter.load() as rows without an ID.
+    # Anonymous superclasses (blank nodes) give an empty parent ID and are
+    # dropped by load().
     query = """
         SELECT ?child ?parent WHERE {
     """ + _activeFilter("child") + _activeFilter("parent") + """
@@ -468,13 +415,10 @@ def getReferences(
     """
     Extract database cross-references (DbXrefs) for HPO concepts.
 
-    Only hasDbXref annotations made directly on the concept are used.
-    DbXrefs on owl:Axiom nodes annotate other annotations (e.g. the
-    sources of a definition or synonym) and are not concept references.
+    Only hasDbXref annotations made directly on the concept are used;
+    those on owl:Axiom nodes give the sources of other annotations.
     """
-    # Retrieve cross-references annotated directly on the concept
-    # (isIRI excludes the blank owl:Axiom nodes, which carry
-    # hasDbXref too)
+    # isIRI excludes the blank owl:Axiom nodes.
     query = """
         SELECT DISTINCT ?hpoID ?xref WHERE {
             FILTER(isIRI(?hpoID))

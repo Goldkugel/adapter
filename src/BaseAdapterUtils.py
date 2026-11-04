@@ -1,12 +1,9 @@
 """
 Shared utilities for all ontology adapters.
 
-Provides EAV attribute-name constants (labelClass, synonymClass, etc.),
-filesystem helpers (isFile, isFolder, createFolder), CSV writing helpers
-(writeCSV, writeHugeCSV), helpers shared by the source-specific
-readers (additionalFrom, readFileByPrefix) used by BaseAdapter and its
-concrete subclasses, and mergeAdditional, which combines the additional
-information of duplicate rows.
+EAV attribute-name constants, filesystem and CSV writing helpers, helpers
+for the source-specific readers (additionalFrom, readFileByPrefix) and
+mergeAdditional for the additional information of duplicate rows.
 """
 
 from __future__ import annotations
@@ -33,13 +30,12 @@ additionalSeparator : str = ", "
 
 def mergeAdditional(entries) -> dict:
     """
-    Merge the additional dicts of duplicate (id, attribute, value) rows into
-    one dict with every key of any of them. A key with only one distinct
-    value keeps it as it is; different values are joined as strings with
-    additionalSeparator, each value once and in the order of the rows,
-    e.g. {"class": "exact"}
-    and {"class": "related"} give {"class": "exact, related"}. Entries that
-    are not dicts (e.g. a missing value) add nothing.
+    Merge the additional dicts of duplicate (id, attribute, value) rows.
+
+    A key with one distinct value keeps it; different values are joined in
+    row order with additionalSeparator, e.g. {"class": "exact"} and
+    {"class": "related"} give {"class": "exact, related"}. Non-dict entries
+    (e.g. NaN) are ignored.
     """
     values: dict = {}
     for entry in entries:
@@ -58,8 +54,8 @@ def mergeAdditional(entries) -> dict:
 
 def additionalFrom(values: pd.Series, key: str):
     """
-    Build the additional column from one source column: one new dict
-    {key: value} per row (a new dict each, so rows never share one).
+    Build the additional column from one source column: a separate dict
+    {key: value} per row, so rows never share one.
     """
     return values.map(lambda v: {key: v}).values
 
@@ -181,8 +177,8 @@ def writeCSV(
     """
     Write a DataFrame to disk as a CSV file with logging.
 
-    Every field is quoted (csv.QUOTE_ALL), so values containing the
-    separator, quotes or line breaks survive a round trip.
+    Every field is quoted (csv.QUOTE_ALL), so separators, quotes and line
+    breaks in values survive a round trip.
 
     Parameters
     ----------
@@ -205,16 +201,9 @@ def writeCSV(
     ret: int = 0
     l: Logger = Logger()
 
-    # Only proceed if a DataFrame was actually provided.
     if data is not None:
-        # Only proceed if a target file path was actually provided.
         if file:
-            # Log before starting the write, in case it's a large file
-            # and takes noticeable time.
             l.printWriteFileStart(file)
-
-            # Write the DataFrame to disk without the pandas row index,
-            # using the given separator and encoding.
             data.to_csv(
                 file,
                 sep=separator,
@@ -223,14 +212,11 @@ def writeCSV(
                 quoting=csv.QUOTE_ALL
             )
 
-            # Log that the write completed.
             l.printWriteFileEnd(file)
             ret = len(data)
         else:
-            # No file path given — log and skip writing.
             l.log("File has not been specified and is empty.")
     else:
-        # No DataFrame given — log and skip writing.
         l.log("No data provided.")
 
     return ret
@@ -243,13 +229,11 @@ def writeHugeCSV(
     encoding: str = "utf-8"
 ) -> int:
     """
-    Write a DataFrame to disk atomically by first writing to a temporary
-    file, then replacing the target file in a single operation.
+    Write a DataFrame to disk atomically via a temporary file.
 
-    This avoids leaving a corrupted or partially-written file at `file`
-    if the write is interrupted, since the original file is only replaced
-    once the temporary file has been fully written. The temporary file is
-    always cleaned up, even if the write fails.
+    An interrupted write never leaves a partial file at `file`; the
+    temporary file is removed even if the write fails. An existing file
+    is not replaced if no rows were written.
 
     Parameters
     ----------
@@ -270,7 +254,6 @@ def writeHugeCSV(
     ret: int = 0
     l: Logger = Logger()
 
-    # Guard early — no point in creating a temp file if inputs are invalid.
     if data is None:
         l.log("No data provided.")
         return ret
@@ -278,29 +261,23 @@ def writeHugeCSV(
         l.log("File has not been specified and is empty.")
         return ret
 
-    # Build the temporary file path by appending ".tmp" to the target path.
     tmpfile = file + ".tmp"
 
     l.log("Writing to a temporary file first...")
 
     try:
-        # Write to the temporary file first, reusing writeCSV's logic.
         ret = writeCSV(data, tmpfile, separator, encoding)
         l.log("Writing to a temporary file first completed.")
 
-        # Only replace the original file if the temporary write succeeded.
         if ret > 0:
             l.log("Replacing original data with temporary data...")
-
-            # Atomically replace the target file with the temporary file
-            # (os.replace is atomic on both POSIX and Windows).
+            # os.replace is atomic on both POSIX and Windows.
             os.replace(tmpfile, file)
 
             l.log("Replacing original data with temporary data completed.")
         else:
             l.log("Nothing written, therefore not replacing the data.")
     finally:
-        # Always clean up the temporary file if it still exists.
         if os.path.exists(tmpfile):
             os.remove(tmpfile)
 

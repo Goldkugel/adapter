@@ -1,11 +1,9 @@
 """
 Utility functions and constants for the UMLS adapter.
 
-Provides RRF column layouts, file readers, and EAV transformers for
-the MRCONSO and MRDEF RRF release files, which UMLSAdapter._loadFrames()
-processes. Column layouts for MRSTY and MRREL, and a reader for MRSTY,
-are defined as well but not yet wired into readRRFFileByPath(), so
-those files are skipped if configured.
+RRF column layouts, file readers and EAV transformers for MRCONSO and
+MRDEF. The MRSTY and MRREL layouts and the MRSTY reader are not yet wired
+into readRRFFileByPath(), so those files are skipped if configured.
 """
 
 from __future__ import annotations
@@ -18,46 +16,31 @@ from logger             import Logger
 import pandas           as pd
 import csv
 
-# --- Filter value constants ---
-
-# RRF files use "Y" / "N" strings for boolean-like flags (e.g. SUPPRESS).
+# RRF flag values (e.g. SUPPRESS, ISPREF).
 rrfYes : str = "Y"
 rrfNo  : str = "N"
 
-# --- Term type constants (values found in the TTY column of MRCONSO) ---
-
+# Term types (MRCONSO column TTY).
 preferredTerm     : str = "PT"   # Preferred term
 synonymTerm       : str = "SY"   # Synonym
 abbreviationTerm  : str = "AB"   # Abbreviation
 preferredNameTerm : str = "PN"   # Preferred name
 
-# --- Preferred-atom flag values (MRCONSO columns TS, STT and ISPREF) ---
-
-# Used to pick a label for concepts without a PT/PN string: the atom
-# whose term status is "P" (preferred LUI of the concept), string type
-# "PF" (preferred form of the term) and ISPREF "Y" (preferred atom of
-# the string) is the concept's preferred atom.
+# Preferred-atom flags, used to pick a label for concepts without a PT/PN
+# string: TS "P" (preferred LUI), STT "PF" (preferred form), ISPREF "Y".
 preferredTermStatus : str = "P"
 preferredStringType : str = "PF"
 
-# --- Language filter ---
-
-# Only English-language rows are extracted from MRCONSO.
 englishLanguage : str = "ENG"
 
-# --- Source code placeholder ---
-
-# Value of the CODE column for atoms whose source vocabulary has no code
-# for them (e.g. most MTH atoms). It is not a code, so it produces no
+# CODE of atoms without a source code (e.g. most MTH atoms); gives no
 # reference row.
 noCode : str = "NOCODE"
 
-# --- EAV additional-column key ---
-
+# Key of the SAB in the additional dict.
 sourceAbbreviation : str = "source_abbreviation"
 
-# --- RRF source column names (MRCONSO) ---
-
+# RRF column names: MRCONSO, then MRDEF, MRSTY and MRREL.
 rrfConceptUniqueIdentifier          : str = "CUI"
 rrfLanguage                         : str = "LAT"
 rrfTermStatus                       : str = "TS"
@@ -77,19 +60,13 @@ rrfSourceRestrictionLevel           : str = "SRL"
 rrfSuppressibleFlag                 : str = "SUPPRESS"
 rrfContentViewFlag                  : str = "CVF"
 
-# --- RRF source column names (MRDEF) ---
-
 rrfAttributeUniqueIdentifier        : str = "ATUI"
 rrfSourceAssertedAttributeIdentifier: str = "SATUI"
 rrfDefinition                       : str = "DEF"
 
-# --- RRF source column names (MRSTY) ---
-
 rrfSemanticTypeUniqueIdentifier     : str = "TUI"
 rrfSemanticTypeTreeNumber           : str = "STN"
 rrfSemanticType                     : str = "STY"
-
-# --- RRF source column names (MRREL) ---
 
 rrfConceptUniqueIdentifier1         : str = "CUI1"
 rrfAtomUniqueIdentifier1            : str = "AUI1"
@@ -105,8 +82,7 @@ rrfSourceLevel                      : str = "SL"
 rrfRelationshipGroup                : str = "RG"
 rrfDirectionalityFlag               : str = "DIR"
 
-# --- RRF column layouts ---
-
+# Full column layouts in file order.
 mrconsoColumns = [
     rrfConceptUniqueIdentifier,          # ID
     rrfLanguage,                         # Filter: only ENG
@@ -167,20 +143,16 @@ mrrelColumns = [
     rrfContentViewFlag,
 ]
 
-# --- RRF filename prefixes ---
-
 conceptPrefix    : str = "MRCONSO"
 definitionPrefix : str = "MRDEF"
 
 
-# Rows read from an RRF file at a time. Each chunk is filtered before
-# the next one is read, so only the rows that are kept accumulate in
-# memory (MRCONSO alone has well over ten million rows).
+# Rows per chunk; each chunk is filtered before the next is read, as
+# MRCONSO has well over ten million rows.
 rrfChunkSize : int = 1_000_000
 
-# Columns of MRCONSO and MRDEF that the transformers below use. The
-# other columns are skipped while reading, which saves most of the
-# memory since every value is held as a Python string.
+# Columns the transformers use; skipping the rest saves most of the
+# memory, since every value is a Python string.
 mrconsoUsedColumns = [
     rrfConceptUniqueIdentifier,
     rrfLanguage,
@@ -223,20 +195,10 @@ def _readRRFFile(
     """
     Read a UMLS RRF file into a DataFrame.
 
-    RRF files have no header row — column names are supplied explicitly
-    from the UMLS documentation. A trailing pipe at the end of each row
-    means pandas sees one extra unnamed column; it is named "_" so that
-    it can be told apart from the real columns, and is never kept.
-
-    All columns are read as strings to avoid misinterpreting CUIs or
-    other numeric-looking fields. RRF has no quoting, so quote characters
-    are kept as part of the string, and NA detection is disabled so
-    strings like "NA" (sodium) or "None" are not turned into missing
-    values; empty fields become "".
-
-    The file is read in chunks of rrfChunkSize rows, and rowFilter is
-    applied to each chunk before the next one is read, so the full file
-    is never held in memory at once.
+    All columns are read as strings, quote characters are kept, and NA
+    detection is off so "NA" (sodium) or "None" stay strings; empty fields
+    become "". The file is read in chunks of rrfChunkSize rows, each
+    filtered by rowFilter, so it is never held in memory at once.
 
     Parameters
     ----------
@@ -270,7 +232,7 @@ def _readRRFFile(
         path,
         sep             = separator,
         header          = None,
-        names           = columns + ["_"],  # absorb the trailing pipe
+        names           = columns + ["_"],  # column after the trailing pipe
         usecols         = usecols,
         dtype           = str,
         encoding        = encoding,
@@ -305,11 +267,8 @@ def readMRCONSOFile(
     separator: str
 ) -> pd.DataFrame:
     """
-    Read MRCONSO.RRF: one row per concept string across all source
-    vocabularies, including preferred terms, synonyms, and source codes.
-
-    Only the columns used by getConcepts() and only English,
-    non-suppressed rows are kept.
+    Read MRCONSO.RRF (concept strings of all source vocabularies), keeping
+    the columns getConcepts() uses and English, non-suppressed rows.
     """
     return _readRRFFile(
         path, mrconsoColumns, encoding, separator,
@@ -324,11 +283,8 @@ def readMRDEFFile(
     separator: str
 ) -> pd.DataFrame:
     """
-    Read MRDEF.RRF: one row per concept definition, sourced from
-    individual vocabularies included in the UMLS Metathesaurus.
-
-    Only the columns used by getDefinitions() and only non-suppressed
-    rows are kept.
+    Read MRDEF.RRF (definitions of the source vocabularies), keeping the
+    columns getDefinitions() uses and non-suppressed rows.
     """
     return _readRRFFile(
         path, mrdefColumns, encoding, separator,
@@ -359,16 +315,13 @@ def _getFallbackLabels(
     """
     Pick one label per concept from a raw (filtered) MRCONSO DataFrame.
 
-    Used for concepts that have no PT/PN string. Each concept's atoms
-    are ranked by how many of the preferred-atom flags they have, in
-    this order: TS = P, STT = PF, ISPREF = Y. The string of the best
-    atom becomes the label; ties keep the first atom in file order.
-    The source abbreviation (SAB) is carried as additional information.
+    Atoms are ranked by the preferred-atom flags, TS = P outweighing
+    STT = PF outweighing ISPREF = Y; ties keep file order. The SAB goes to
+    the additional dict.
     """
     candidates = data[data[rrfString].notna() & (data[rrfString] != "")]
 
-    # Lower rank is better; each missing flag adds its weight, so TS
-    # outweighs STT, which outweighs ISPREF.
+    # Lower is better; each missing flag adds its weight.
     rank = (
         (candidates[rrfTermStatus]  != preferredTermStatus).astype(int) * 4 +
         (candidates[rrfStringType]  != preferredStringType).astype(int) * 2 +
@@ -403,25 +356,18 @@ def getConcepts(
     - PT / PN  -> label
     - SY / AB  -> synonym
 
-    Each string (STR) produces one label or synonym row. Each concept
-    without a PT/PN string gets one label from its preferred atom
-    instead (see _getFallbackLabels). Each source code (CODE) produces
-    one reference row carrying the source abbreviation (SAB) as
-    additional information; empty codes and the NOCODE placeholder are
-    skipped. Several rows with the same (id, attribute, value), e.g. the
-    same string from several sources, are all returned; load() merges
-    them into one row with the source abbreviations joined.
+    A concept without a PT/PN string gets one label from its preferred
+    atom (see _getFallbackLabels). Each real source code (CODE) gives a
+    reference row. All rows carry the SAB as additional information;
+    duplicates across sources are merged later by load().
     """
     l = Logger()
 
-    # Keep only English, non-suppressed rows. readMRCONSOFile() already
-    # drops the others while reading; this keeps the transformer correct
-    # for frames that were read without that filter.
+    # readMRCONSOFile() already filters; this covers frames read otherwise.
     filtered = data[_isEnglishAndNotSuppressed(data)].copy()
 
     l.log(f"Transforming {len(filtered)} rows into EAV schema...")
 
-    # Map TTY to EAV attribute name.
     tty_to_attribute = {
         preferredTerm    : labelClass,
         preferredNameTerm: labelClass,
@@ -431,9 +377,7 @@ def getConcepts(
     # Other TTYs map to NaN and produce no label/synonym row.
     attribute_series = filtered[rrfTermType].map(tty_to_attribute)
 
-    # Build label/synonym rows for rows with a known TTY and a non-empty
-    # string; the same mask is applied to the rows and to their attribute
-    # names, so the two stay aligned.
+    # One mask for rows and attributes keeps them aligned.
     has_term   = attribute_series.notna() & filtered[rrfString].notna() & (filtered[rrfString] != "")
     known      = filtered[has_term].copy()
     attributes = attribute_series[has_term]
@@ -445,10 +389,8 @@ def getConcepts(
         additional_column: additionalFrom(known[rrfSourceAbbreviation], sourceAbbreviation),
     })
 
-    # Give every concept without a PT/PN label one label from its
-    # preferred atom. Only the atoms of those concepts are passed on, but
-    # all of their atoms (any TTY), since the preferred atom can have any
-    # term type.
+    # Pass all atoms (any TTY) of the unlabelled concepts, since the
+    # preferred atom can have any term type.
     labelled = label_synonym_rows.loc[
         label_synonym_rows[attribute_column] == labelClass, id_column
     ]
@@ -460,8 +402,6 @@ def getConcepts(
         additional_column,
     )
 
-    # Build reference rows for rows with a real source code, i.e. not
-    # empty and not the NOCODE placeholder.
     has_code = filtered[
         filtered[rrfSourceCode].notna() &
         (filtered[rrfSourceCode] != "") &
@@ -477,9 +417,6 @@ def getConcepts(
 
     l.log(f"Transforming {len(filtered)} rows into EAV schema completed.")
 
-    # Rows with the same (id, attribute, value), e.g. the same string from
-    # several sources, are merged by load(), which joins their source
-    # abbreviations (see BaseAdapter._mergeDuplicates()).
     return pd.concat([label_synonym_rows, fallback_rows, reference_rows], ignore_index=True)
 
 
@@ -493,16 +430,12 @@ def getDefinitions(
     """
     Convert a raw MRDEF DataFrame into EAV rows.
 
-    Only non-suppressed rows with a non-empty definition string are kept.
-    Each definition produces one row with attribute set to definitionClass,
-    and the source abbreviation (SAB) carried as additional information.
-    The same definition from several sources gives one row per source;
-    load() merges them into one row with the source abbreviations joined.
+    Keeps non-suppressed rows with a non-empty definition, with the SAB as
+    additional information; duplicates across sources are merged later by
+    load().
     """
     l = Logger()
 
-    # Keep only non-suppressed rows with a non-empty definition
-    # (readMRDEFFile() already drops suppressed rows while reading).
     filtered = data[
         _isNotSuppressed(data) &
         data[rrfDefinition].notna() &
@@ -519,17 +452,11 @@ def getDefinitions(
     })
 
     l.log(f"Transforming {len(filtered)} rows into EAV schema completed.")
-
-    # The same definition from several sources is merged by load(), which
-    # joins their source abbreviations (see BaseAdapter._mergeDuplicates()).
     return result
 
 
-# Prefix -> (reader, transformer) lookup, checked in insertion order
-# against a file's basename; the first matching prefix wins. A more
-# specific prefix must be listed before any shorter prefix it could also
-# satisfy; none of the current RRF prefixes overlap, but new file types
-# should be added with that in mind.
+# Checked in order against a file's basename; the first match wins, so a
+# new prefix must precede any shorter prefix it also matches.
 _rrfHandlersByPrefix = {
     conceptPrefix    : (readMRCONSOFile, getConcepts),
     definitionPrefix : (readMRDEFFile,   getDefinitions),
@@ -548,11 +475,9 @@ def readRRFFileByPath(
     """
     Read a single RRF file and convert it to EAV rows.
 
-    Chooses the appropriate reader function — and therefore the
-    appropriate column layout — based on the file's own name.
-    file_path must point directly to the file itself, not to the
-    directory containing it. Returns None and logs a warning if the
-    filename doesn't start with any of the known RRF prefixes.
+    The reader is chosen by the file's own name, so file_path must point
+    to the file, not its directory. Returns None (and logs) if no known
+    RRF prefix matches.
     """
     return readFileByPrefix(
         file_path, _rrfHandlersByPrefix, "RRF",

@@ -1,11 +1,9 @@
 """
 Concrete adapter for the Unified Medical Language System (UMLS).
 
-Reads the configured UMLS RRF files (MRCONSO, MRDEF) via the appropriate
-parsers and transformers from UMLSAdapterUtils. BaseAdapter.load()
-merges and cleans the resulting EAV tables and adds the configured
-prefix (by default "UMLS:", the prefix HPO uses for CUIs in its
-cross-references).
+Reads the configured UMLS RRF files (MRCONSO, MRDEF) via UMLSAdapterUtils.
+The default prefix "UMLS:" is the one HPO uses for CUIs in its
+cross-references.
 """
 
 from __future__ import annotations
@@ -19,11 +17,8 @@ import pandas            as pd
 
 class UMLSAdapter(BaseAdapter):
     """
-    Concrete adapter for loading selected UMLS RRF files into the shared
+    Adapter loading selected UMLS RRF files into the shared
     Entity-Attribute-Value (EAV) format.
-
-    Each configured RRF file is read using the appropriate parser and
-    transformer from UMLSAdapterUtils.
     """
 
     ontology_name  = "UMLS"

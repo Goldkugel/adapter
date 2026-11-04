@@ -1,13 +1,10 @@
 """
 Concrete adapter for SNOMED CT (RF2 release format).
 
-Reads the Concept, Description, TextDefinition, Relationship, and
-SimpleMap files named in the configuration, restricts every file to
-concepts that are currently active (per the Concept file), and
-converts each remaining file into EAV rows. BaseAdapter.load() merges
-and cleans them and adds the configured prefix (by default
-"SNOMEDCT_US:", which matches the source abbreviation used by UMLS and
-which downstream mapping code relies on).
+Reads the configured Concept, Description, TextDefinition, Relationship
+and SimpleMap files, keeps only concepts active per the Concept file and
+converts the rest into EAV rows. The default prefix "SNOMEDCT_US:" matches
+the UMLS source abbreviation, which downstream mapping code relies on.
 """
 
 from __future__ import annotations
@@ -24,13 +21,8 @@ import pandas            as pd
 
 class SCTAdapter(BaseAdapter):
     """
-    Concrete adapter for loading SNOMED CT (RF2 release format) into
-    the shared EAV DataFrame format.
-
-    Reads the Concept, Description, TextDefinition, Relationship, and
-    Simple Map files named in the configuration, restricts every file
-    to concepts that are currently active (per the Concept file), and
-    converts each remaining file into EAV rows.
+    Adapter loading SNOMED CT (RF2 release format) into the shared EAV
+    format, restricted to active concepts.
     """
 
     ontology_name  = "SNOMED CT"
@@ -72,11 +64,8 @@ class SCTAdapter(BaseAdapter):
             One EAV DataFrame per recognised RF2 file (excluding the
             Concept file, which only provides the active-concept filter).
         """
-        # Separate the Concept file from the rest — it is read first to
-        # build the active-concept filter set, then excluded from the
-        # main EAV extraction loop. Raises if no (or more than one)
-        # Concept file is configured, since without it inactive concepts
-        # cannot be filtered out.
+        # The Concept file only provides the active-concept filter; it is
+        # required, since without it inactive concepts can't be removed.
         concept_file = self._findInputFile(conceptPrefix)
         files = [f for f in self.config.input_files if f != concept_file]
 
@@ -106,8 +95,7 @@ class SCTAdapter(BaseAdapter):
                 self.config.encoding,
                 self.config.separator
             )
-            # None means the file matches no known RF2 prefix (logged by
-            # readRF2FileByPath) and is skipped.
+            # None: no known RF2 prefix (logged by readRF2FileByPath).
             if frame is not None:
                 frames.append(
                     removeNotActiveConcepts(

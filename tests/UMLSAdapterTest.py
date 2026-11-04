@@ -24,10 +24,8 @@ import pandas       as pd
 import yaml
 import pytest
 
-# unittest.mock patches names where they are looked up, not where they
-# are defined. UMLSAdapter imports readRRFFileByPath into its own
-# namespace, so it must be patched under "src.umls.UMLSAdapter" rather
-# than under "src.umls.UMLSAdapterUtils" where it is originally defined.
+# UMLSAdapter imports readRRFFileByPath into its own namespace, so it is
+# patched under "src.umls.UMLSAdapter", where it is looked up.
 PATCH_MODULE = "src.umls.UMLSAdapter"
 
 

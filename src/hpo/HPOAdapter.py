@@ -23,13 +23,8 @@ import pandas            as pd
 
 class HPOAdapter(BaseAdapter):
     """
-    Concrete adapter for loading the Human Phenotype Ontology (HPO)
-    into the shared EAV DataFrame format.
-
-    Loads the OWL file specified in the adapter configuration (the first
-    entry of `input_files`) via owlready2, then runs each HPOAdapterUtils
-    extractor (labels, definitions, comments, children, references,
-    synonyms) against it.
+    Adapter loading the Human Phenotype Ontology (HPO) OWL file (the first
+    entry of `input_files`) into the shared EAV format.
     """
 
     ontology_name  = "the Human Phenotype Ontology (HPO)"
@@ -52,8 +47,7 @@ class HPOAdapter(BaseAdapter):
         """
         l = Logger()
 
-        # The HPO is distributed as a single OWL file, so only the first
-        # configured input file is used; any further entries are ignored.
+        # The HPO is a single OWL file; further entries are ignored.
         input_file = self.config.input_files[0]
         if len(self.config.input_files) > 1:
             l.log(f"Only the first input file is used for HPO; ignoring "

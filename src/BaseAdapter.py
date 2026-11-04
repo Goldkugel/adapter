@@ -19,22 +19,17 @@ import pandas           as pd
 import yaml
 import os
 
-# Key under which adapter settings are expected to live in the YAML config file.
+# Top-level keys of the YAML config file, and its default path.
 configuration_section: str = "adapter"
-
-# Key of the logger settings in the same file (see the logger package).
 logger_section: str        = "logger"
-
-# Default path to the config file, used if no path is explicitly passed in.
 standard_directory: str    = "./config/config.yaml"
 
 
 def _findSection(raw: object, keys: list[str], source: str) -> object:
     """
-    Walk down the parsed configuration along `keys` (e.g. "adapter" ->
-    "sct") and return what is found there, raising a ValueError that
-    names the missing section, where it was looked for and the keys that
-    exist instead.
+    Return the section at `keys` (e.g. "adapter" -> "sct") of the parsed
+    configuration; raise a ValueError naming the missing section and the
+    keys that exist instead.
     """
     section = raw
     for depth, key in enumerate(keys):
@@ -54,10 +49,7 @@ def _findSection(raw: object, keys: list[str], source: str) -> object:
 
 
 def _withoutEmpty(data: pd.DataFrame, column: str, description: str) -> pd.DataFrame:
-    """
-    Remove the rows whose `column` is missing or "", logging the step as
-    "Removing rows without <description>...".
-    """
+    """Remove the rows whose `column` is missing or "", logging the step."""
     l = Logger()
     l.log(f"Removing rows without {description}...")
     data = data[data[column].notna() & (data[column] != "")]
@@ -79,15 +71,14 @@ class BaseAdapter(ABC):
     may override `_clean()` for source-specific cleaning.
     """
 
-    # Name of the ontology, used in log messages.
+    # Name of the ontology in log messages.
     ontology_name: str  = "ontology"
 
     # Prefix used if the config section doesn't set `prefix`.
     default_prefix: str = ""
 
-    # Key of the adapter's subsection within the "adapter" section (e.g.
-    # "hpo"), used if no adapter_name is passed. Empty means the
-    # "adapter" section itself.
+    # Subsection of "adapter" (e.g. "hpo") used if no adapter_name is
+    # passed; empty means the "adapter" section itself.
     config_section: str = ""
 
     def __init__(
@@ -128,22 +119,18 @@ class BaseAdapter(ABC):
             If the section is missing or not a mapping, or if its values
             are invalid (e.g. unknown keys or wrong types).
         """
-        # Declare the instance attributes. self.data stays None until
-        # load() finds data; self.config is set right below.
+        # self.data stays None until load() finds data.
         self.config: BaseAdapterConfig = None
         self.data: pd.DataFrame        = None
 
         if adapter_name is None:
             adapter_name = self.config_section
 
-        # Raises before anything else happens if the configuration is
-        # missing or invalid, so no adapter exists with a broken config.
         self.config, logger_path, logger_settings = self._resolveConfig(config, adapter_name)
 
-        # The Logger is a process-wide singleton. If the entry point has not
-        # configured it yet, configure it from the same source as the
-        # adapter: the same YAML file, or the "logger" key of the same dict.
-        # Without either, Logger() falls back to ./config/config.yaml.
+        # The Logger is a process-wide singleton: configure it only if the
+        # entry point has not. Without a source, Logger() falls back to
+        # ./config/config.yaml.
         if Logger.config is None and logger_path is not None:
             Logger(logger_path)
         elif Logger.config is None and logger_settings is not None:
@@ -163,12 +150,9 @@ class BaseAdapter(ABC):
         Logger from the same source.
         """
         if isinstance(config, BaseAdapterConfig):
-            # Copy the given config so later changes by the caller do not
-            # silently change the adapter's configuration. The adapter's
-            # default prefix applies unless the config sets one explicitly:
-            # model_fields_set holds only the fields passed when the model
-            # was created, so an explicit prefix="" is kept, while a prefix
-            # left at the field default is replaced.
+            # Copy, so later changes by the caller don't affect the adapter.
+            # model_fields_set holds only explicitly passed fields, so an
+            # explicit prefix="" is kept and a defaulted one is replaced.
             if "prefix" in config.model_fields_set:
                 return config.model_copy(deep=True), None, None
             return config.model_copy(deep=True, update={"prefix": self.default_prefix}), None, None
@@ -177,9 +161,8 @@ class BaseAdapter(ABC):
         logger_settings = None
 
         if isinstance(config, dict):
-            # A full configuration (the parsed YAML file) has an "adapter"
-            # key, which is not a valid adapter setting itself, so the two
-            # kinds of dict cannot be confused.
+            # Only a full configuration has an "adapter" key (it is not a
+            # valid adapter setting), so the two kinds of dict can't clash.
             if configuration_section not in config:
                 return self._validateSection(config, "", "the given dict"), None, None
             raw = config
@@ -187,12 +170,9 @@ class BaseAdapter(ABC):
             logger_settings = config.get(logger_section)
         else:
             file_path = os.fspath(config)
-            # Open and parse the YAML config file.
             with open(file_path, "r", encoding="utf-8") as f:
                 raw = yaml.safe_load(f)
             source = f"configuration file '{file_path}'"
-            # Only hand the path on to the Logger if the file has logger
-            # settings.
             if isinstance(raw, dict) and logger_section in raw:
                 logger_path = file_path
 
@@ -215,8 +195,6 @@ class BaseAdapter(ABC):
         if not isinstance(section, dict):
             raise ValueError(f"The {name} in {source} is empty or not a mapping.")
 
-        # Validate/coerce the section into a BaseAdapterConfig model. The
-        # adapter's default prefix applies unless the section sets one.
         try:
             return BaseAdapterConfig.model_validate(
                 {"prefix": self.default_prefix, **section}
@@ -362,33 +340,26 @@ class BaseAdapter(ABC):
         l.log("Merging data completed.")
         l.log(f"Found {len(data)} entities/rows in total.")
 
-        # Rows without an identifier cannot be assigned to a concept;
-        # rows without a value (empty terms, codes or definitions) add no
-        # information and would leave empty cells in the EAV CSV.
+        # Rows without an ID belong to no concept; rows without a value add
+        # nothing and would leave empty cells in the EAV CSV.
         data = _withoutEmpty(data, id_column, "an ID")
         data = _withoutEmpty(data, value_column, "values")
 
         data = self._clean(data)
 
-        # Merge duplicates across (id, attribute, value) — e.g. the same
-        # UMLS string from several sources, or an HPO synonym listed as exact
-        # and as related synonym or with several synonym types — into their
-        # first row, which gets the additional info of all of them (see
-        # mergeAdditional()).
+        # E.g. the same UMLS string from several sources, or an HPO synonym
+        # listed with several synonym types.
         l.log("Merging duplicate rows...")
         data = self._mergeDuplicates(data)
         l.log("Merging duplicate rows completed.")
         l.log(f"Reduced to {len(data)} entities/rows in total.")
 
-        # The prefix is added last, so the steps above (and _clean())
-        # always see the IDs as the source has them.
+        # Prefix last, so the steps above (and _clean()) see the source IDs.
         if self.config.prefix:
             l.log("Adding prefix...")
-            # Add the prefix to the id column
             data[id_column] = self.config.prefix + data[id_column].astype(str)
 
-            # Add the prefix to the value column of child rows, whose
-            # values are IDs as well
+            # Values of child rows are IDs as well.
             child_mask = data[attribute_column] == childrenClass
             data.loc[child_mask, value_column] = (
                 self.config.prefix + data.loc[child_mask, value_column].astype(str)
@@ -401,17 +372,14 @@ class BaseAdapter(ABC):
         """
         Write self.data to disk at the configured output location.
 
-        Uses the configured delimiter and encoding. The output folder is
-        created automatically if it does not already exist. Shared across
-        all adapters, since the write logic itself doesn't depend on which
-        ontology was loaded.
+        Uses the configured delimiter and encoding, and creates the output
+        folder if needed.
 
         Returns
         -------
         int
             Number of rows written to the CSV file.
         """
-        # Create the output folder if it does not exist yet.
         if not isFolder(self.config.output_folder):
             createFolder(self.config.output_folder)
 

@@ -5,68 +5,41 @@ class BaseAdapterConfig(BaseModel):
     Pydantic model defining and validating the configuration schema shared
     by all ontology adapters.
 
-    Instances are created by `BaseAdapter.__init__()` from one section of
-    the YAML config file (e.g. `adapter.hpo`) or from a dict, or are
-    created by the caller and passed to the adapter directly. Pydantic
-    validates field types and enforces defaults for any fields not present
-    in the supplied data.
-
-    All adapters share this one model. Fields that only some adapters use
-    (e.g. `separator`, unused by HPO) are defined here as well and simply
-    ignored by the others.
+    Built by `BaseAdapter.__init__()` from one section of the YAML config
+    file (e.g. `adapter.hpo`) or a dict, or passed in directly. Fields only
+    some adapters use (e.g. `separator`) are ignored by the others.
     """
 
-    # Reject any keys in the input data that aren't explicitly defined below.
-    # This catches typos or outdated config keys early, instead of silently
-    # ignoring them.
+    # Reject unknown keys, so typos and outdated config keys fail early.
     model_config = ConfigDict(extra = "forbid")
 
-    # Directory containing the raw ontology input file(s).
     input_folder: str       = "./data/input/"
-
-    # The list of input files to process.
     input_files: list[str]  = []
-
-    # Directory where the output CSV file will be written (relative or
-    # absolute path).
     output_folder: str      = "./data/output/transformed/"
-
-    # Name of the CSV file to write to within `output_folder`.
     output_file: str        = "ontology.csv"
 
-    # Field delimiter used when writing the EAV CSV file (output). See
-    # `separator` for the delimiter of the input files.
+    # Delimiter of the output CSV; `separator` is the one of the input.
     delimiter: str          = ";"
 
-    # Character encoding used for both reading input files and writing
-    # the output CSV file.
+    # Used for reading the input and writing the output.
     encoding: str           = "utf-8"
 
-    # The column where the IDs will be stored.
+    # Output column names.
     id_column: str          = "id"
-
-    # The column where the attribute names will be stored.
     attribute_column: str   = "attribute"
-
-    # The column where the values will be stored.
     value_column: str       = "value"
 
-    # The column where additional information is stored as a dict (written
-    # to the CSV as a Python dict literal, readable with ast.literal_eval).
+    # Holds a dict, written as a Python literal (read with ast.literal_eval).
     additional_column: str  = "additional"
 
     # If True, load() does nothing when the output file already exists.
     skip_if_present: bool   = False
 
-    # Prefix put in front of every ID, and in front of the value of every
-    # child row (which is an ID as well), e.g. "SNOMEDCT_US:" turns
-    # "404684003" into "SNOMEDCT_US:404684003". Empty for sources whose
-    # IDs already carry a prefix, such as HPO ("HP:0000118"). If the
-    # config section doesn't set it, the adapter's own default applies
-    # (see BaseAdapter.default_prefix).
+    # Put in front of every ID and every child row value, e.g.
+    # "SNOMEDCT_US:404684003". Defaults to BaseAdapter.default_prefix if
+    # the config section doesn't set it (empty for HPO, whose IDs have one).
     prefix: str             = ""
 
-    # Field separator used when reading tabular input files (input), e.g.
-    # "\t" for SNOMED CT RF2 and "|" for UMLS RRF. Unused by the HPO
-    # adapter, which parses an OWL file.
+    # Separator of tabular input files: "\t" for SNOMED CT RF2, "|" for
+    # UMLS RRF. Unused by HPO (OWL).
     separator: str          = "\t"

@@ -1,9 +1,8 @@
 """
 Utility functions and constants for the SNOMED CT adapter.
 
-Provides RF2 column layouts, file readers, and EAV transformers for
-the Concept, Description, TextDefinition, Relationship, and SimpleMap
-RF2 release files. All functions are used by SCTAdapter._loadFrames().
+RF2 column layouts, file readers and EAV transformers for the Concept,
+Description, TextDefinition, Relationship and SimpleMap release files.
 """
 
 from __future__ import annotations
@@ -16,11 +15,8 @@ from logger             import Logger
 import pandas           as pd
 import csv
 
-# --- EAV additional-column key ---
-
+# Key of the refsetId in the additional dict of reference rows.
 referenceOntology               : str = "reference_ontology"
-
-# --- RF2 source column names ---
 
 rf2SourceId                     : str = "id"
 rf2SourceEffectiveTime          : str = "effectiveTime"
@@ -41,15 +37,10 @@ rf2SourceCaseSignificanceId     : str = "caseSignificanceId"
 rf2SourceConceptId              : str = "conceptId"
 rf2SourceLanguageCode           : str = "languageCode"
 
-# --- RF2 column layouts ---
-
-# Columns read (via usecols) from each RF2 file type. Every RF2 file
-# starts with id, effectiveTime, active and moduleId, followed by
-# columns specific to the file type; unused columns are not loaded.
-# Every layout includes id and effectiveTime so that _readRF2File() can
-# reduce Full release files to the latest version of each component.
-# In the comments, "ID" / "Value" / "Additional" name the EAV column a
-# source column ends up in.
+# Columns read (usecols) per RF2 file type. Each includes id and
+# effectiveTime, so _readRF2File() can reduce Full releases to the latest
+# version per component. "ID" / "Value" / "Additional" name the EAV column
+# a source column ends up in.
 conceptColumns = [
     rf2SourceId,                # ID (SCTID of the concept)
     rf2SourceEffectiveTime,     # Keep only the latest version per id
@@ -69,8 +60,6 @@ descriptionColumns = [
     rf2SourceCaseSignificanceId # Additional
 ]
 
-# TextDefinition files share the exact same column layout as Description
-# files — only the content differs (definitions rather than terms/synonyms).
 textDefinitionColumns = descriptionColumns
 
 relationshipColumns = [
@@ -92,44 +81,31 @@ simpleMapColumns = [
     rf2SourceMapTarget              # Value, attribute is always "reference"
 ]
 
-# --- RF2 filename prefixes ---
-
-# Expected filename prefix for each RF2 file type. Used by
-# readRF2FileByPath() to determine which reader function — and
-# therefore which columns — apply to a given file, based on its name.
-# The trailing underscore in relationshipPrefix matters: it matches the
-# inferred sct2_Relationship_ file but neither sct2_StatedRelationship_
-# nor sct2_RelationshipConcreteValues_, which are not processed.
-# simpleMapPrefix matches the Full, Snapshot and Delta variants.
+# Filename prefixes selecting the reader of a file. The trailing "_" in
+# relationshipPrefix excludes sct2_StatedRelationship_ and
+# sct2_RelationshipConcreteValues_, which are not processed.
 conceptPrefix        : str = "sct2_Concept_"
 descriptionPrefix    : str = "sct2_Description_"
 textDefinitionPrefix : str = "sct2_TextDefinition_"
 relationshipPrefix   : str = "sct2_Relationship_"
 simpleMapPrefix      : str = "der2_sRefset_SimpleMap"
 
-# --- SNOMED CT description type IDs ---
-
-# SNOMED CT description type IDs (values found in the Description /
-# TextDefinition typeId column) mapped to the EAV attribute name each
-# should produce.
+# Description typeIds (Description / TextDefinition files).
 fsnTypeId        : str = "900000000000003001"   # Fully Specified Name
 synonymTypeId    : str = "900000000000013009"   # Synonym
 definitionTypeId : str = "900000000000550004"   # Definition
 
-# Maps each RF2 description typeId to the EAV attribute name it should
-# produce. Any typeId not listed here is dropped during transformation.
+# typeIds not listed here are dropped.
 _descriptionTypeIdToAttribute = {
-    fsnTypeId        : labelClass,       # Fully Specified Name  -> label
-    synonymTypeId    : synonymClass,     # Synonym               -> synonym
-    definitionTypeId : definitionClass,  # Definition            -> definition
+    fsnTypeId        : labelClass,
+    synonymTypeId    : synonymClass,
+    definitionTypeId : definitionClass,
 }
 
-# RF2 files are read with dtype=str (to preserve SCTIDs), so the active
-# flag is also a string — "1" for active, "0" for inactive.
+# RF2 files are read with dtype=str, so the active flag is a string.
 isActive : str = "1"
 
-# Relationship typeId for the IS-A (subtype) relationship — the only
-# relationship type currently converted into the EAV set.
+# IS-A, the only relationship type converted to EAV rows.
 isARelationshipTypeId : str = "116680003"
 
 
@@ -140,13 +116,9 @@ def _readRF2File(
     separator: str
 ) -> pd.DataFrame:
     """
-    Read a single RF2 file (tab-delimited in standard releases; the
-    separator comes from the configuration) into a DataFrame.
-
-    All columns are read as strings to avoid misinterpreting SCTIDs or
-    other numeric-looking fields (e.g. losing precision, or reformatting
-    into scientific notation), and NA detection is disabled so empty
-    fields become "".
+    Read a single RF2 file into a DataFrame, keeping only the latest
+    version of each component. All columns are strings, so SCTIDs keep
+    their precision, and empty fields become "".
     """
     l = Logger()
     l.printFileProcessingStart(path)
@@ -161,13 +133,9 @@ def _readRF2File(
         quoting         = csv.QUOTE_NONE,  # RF2 has no quoting
     )
 
-    # Keep only the most recent version of each component (concept,
-    # description, relationship, refset member — identified by id).
-    # Full release files contain one row per effectiveTime per component;
-    # deduplicating here ensures superseded rows never reach the
-    # transformer functions, so a component that was active once but
-    # later inactivated is seen as inactive. effectiveTime is YYYYMMDD,
-    # so sorting the strings sorts chronologically.
+    # Full releases have one row per effectiveTime per component; keeping
+    # the latest makes a later inactivated component count as inactive.
+    # effectiveTime is YYYYMMDD, so string order is chronological.
     if rf2SourceEffectiveTime in ret.columns and rf2SourceId in ret.columns:
         ret = ret.sort_values(rf2SourceEffectiveTime, ascending=False) \
             .drop_duplicates(subset=[rf2SourceId], keep="first")
@@ -247,12 +215,8 @@ def getConcepts(
     id_column: str
 ) -> list:
     """
-    Return the unique SCTIDs of all active concepts in a raw Concept
-    DataFrame (from readConceptFile).
-
-    Used as a reference/filter set — via removeNotActiveConcepts() — to
-    restrict rows extracted from other RF2 files to concepts that are
-    actually active, not to produce EAV rows in its own right.
+    Return the sorted unique SCTIDs of the active concepts in a raw Concept
+    DataFrame, the filter set for removeNotActiveConcepts().
     """
     active = _activeOnly(data)
     return sorted(set(active[id_column].tolist()))
@@ -266,10 +230,8 @@ def removeNotActiveConcepts(
     """
     Filter an EAV DataFrame to rows whose ID appears in conceptIDs.
 
-    Used after each RF2 file is converted to EAV to ensure only rows
-    belonging to currently active concepts are retained. Only the ID
-    column is checked: for child rows that is the parent, while the child
-    in the value column is not checked.
+    Only the ID column is checked: for child rows that is the parent; the
+    child in the value column is not checked.
     """
     return data[data[id_column].isin(conceptIDs)].copy().reset_index(drop=True)
 
@@ -289,9 +251,8 @@ def getDescriptions(
     dropped. term becomes the value, and caseSignificanceId is carried
     through as additional information.
     """
-    # Map typeId to the attribute name; unknown typeIds map to NaN and
-    # are dropped from both the rows and the attribute series, so the two
-    # stay aligned row by row.
+    # Unknown typeIds map to NaN and are dropped from both, keeping them
+    # aligned.
     active    = _activeOnly(data)
     attribute = active[rf2SourceTypeId].map(_descriptionTypeIdToAttribute)
     known     = active[attribute.notna()].copy()
@@ -316,9 +277,8 @@ def getChildren(
     Convert a raw Relationship DataFrame into EAV rows.
 
     Only active IS-A relationships are kept. destinationId (the parent)
-    becomes the id, sourceId (the child) becomes the value, and
-    attribute is fixed to childrenClass. Each row therefore reads
-    "parent -> child", matching the HPO adapter.
+    becomes the id and sourceId (the child) the value, as in the HPO
+    adapter.
     """
     active = _activeOnly(data)
     isA    = active[active[rf2SourceTypeId] == isARelationshipTypeId]
@@ -341,10 +301,9 @@ def getReferences(
     """
     Convert a raw Simple Map DataFrame into EAV rows.
 
-    referencedComponentId becomes the id, mapTarget becomes the value,
-    attribute is fixed to referenceClass, and refsetId is carried through
-    as additional information (needed to identify which target ontology
-    the mapping belongs to, e.g. ICD-O).
+    referencedComponentId becomes the id and mapTarget the value; refsetId
+    goes to the additional dict, as it identifies the target scheme (e.g.
+    ICD-O).
     """
     active = _activeOnly(data)
 
@@ -366,26 +325,18 @@ def getDefinitions(
     """
     Convert a raw TextDefinition DataFrame into EAV rows.
 
-    Only active rows whose typeId marks them as a Definition are kept
-    (defensive — TextDefinition files are expected to contain only
-    Definition-type rows, but this guards against stray FSN/Synonym rows).
-    conceptId becomes the id, term becomes the value, attribute is fixed
-    to definitionClass, and caseSignificanceId is carried as additional.
+    Keeps only active Definition-type rows (guarding against stray
+    FSN/Synonym rows) and converts them like getDescriptions(), whose
+    layout TextDefinition files share.
     """
-    # A TextDefinition file has the Description layout, so the Description
-    # transformer does the work; it maps the Definition typeId to
-    # definitionClass.
     definitions = data[data[rf2SourceTypeId] == definitionTypeId]
     return getDescriptions(
         definitions, id_column, attribute_column, value_column, additional_column
     )
 
 
-# Prefix -> (reader, transformer) lookup, checked in insertion order
-# against a file's basename; the first matching prefix wins. A more
-# specific prefix must be listed before any shorter prefix it could also
-# satisfy; none of the current RF2 prefixes overlap, but new file types
-# should be added with that in mind.
+# Checked in order against a file's basename; the first match wins, so a
+# new prefix must precede any shorter prefix it also matches.
 _rf2HandlersByPrefix = {
     descriptionPrefix    : (readDescriptionFile,    getDescriptions),
     textDefinitionPrefix : (readTextDefinitionFile, getDefinitions),
@@ -406,11 +357,9 @@ def readRF2FileByPath(
     """
     Read a single RF2 file and convert it to EAV rows.
 
-    Chooses the appropriate reader function — and therefore the
-    appropriate column layout — based on the file's own name.
-    file_path must point directly to the file itself, not to the
-    directory containing it. Returns None and logs a warning if the
-    filename doesn't start with any of the known RF2 prefixes.
+    The reader is chosen by the file's own name, so file_path must point
+    to the file, not its directory. Returns None (and logs) if no known
+    RF2 prefix matches.
     """
     return readFileByPrefix(
         file_path, _rf2HandlersByPrefix, "RF2",

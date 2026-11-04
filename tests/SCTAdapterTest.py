@@ -37,11 +37,8 @@ CONCEPT_FILE      = "sct2_Concept_Full_INT_20260701.txt"
 DESCRIPTION_FILE  = "sct2_Description_Full-en_INT_20260701.txt"
 RELATIONSHIP_FILE = "sct2_Relationship_Full_INT_20260701.txt"
 
-# unittest.mock patches names where they are looked up, not where they
-# are defined. SCTAdapter imports readConceptFile, readRF2FileByPath,
-# getConcepts, and removeNotActiveConcepts into its own namespace, so
-# they must be patched under "src.sct.SCTAdapter" rather than under
-# "src.sct.SCTAdapterUtils" where they are originally defined.
+# SCTAdapter imports its helpers into its own namespace, so they are
+# patched under "src.sct.SCTAdapter", where they are looked up.
 PATCH_TARGET = "src.sct.SCTAdapter"
 
 
