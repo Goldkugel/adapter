@@ -97,7 +97,7 @@ class HPOAdapter(BaseAdapter):
         data[id_column] = data[id_column].astype(str)
         data = data[~data[id_column].str.contains('#', na=False)]
         l.log("Removing rows with a '#' in the ID completed.")
-        l.log(f"Reduced to {len(data)} entities/rows in total.")
+        l.log(f"{len(data)} rows left.")
 
         return data
 

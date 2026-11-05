@@ -54,7 +54,7 @@ def _withoutEmpty(data: pd.DataFrame, column: str, description: str) -> pd.DataF
     l.log(f"Removing rows without {description}...")
     data = data[data[column].notna() & (data[column] != "")]
     l.log(f"Removing rows without {description} completed.")
-    l.log(f"Reduced to {len(data)} entities/rows in total.")
+    l.log(f"{len(data)} rows left.")
     return data
 
 
@@ -285,8 +285,9 @@ class BaseAdapter(ABC):
             l.log("Skipping loading since output file is already present.")
             return 0
 
-        l.log(f"Loading {self.ontology_name} from "
-              f"{len(self.config.input_files)} files...")
+        count = len(self.config.input_files)
+        loading = f"Loading {self.ontology_name} from {count} file{'' if count == 1 else 's'}"
+        l.log(f"{loading}...")
         l.log("Reading the input files...")
         frames = self._readFrames()
         l.log("Reading the input files completed.")
@@ -298,8 +299,7 @@ class BaseAdapter(ABC):
         else:
             l.log("No data found, check the configured input files.")
 
-        l.log(f"Loading {self.ontology_name} from "
-              f"{len(self.config.input_files)} files completed.")
+        l.log(f"{loading} completed.")
         return ret
 
     def _readFrames(self) -> list[pd.DataFrame]:
@@ -338,7 +338,7 @@ class BaseAdapter(ABC):
         l.log("Merging data...")
         data = pd.concat(frames, ignore_index=True)
         l.log("Merging data completed.")
-        l.log(f"Found {len(data)} entities/rows in total.")
+        l.log(f"Found {len(data)} rows.")
 
         # Rows without an ID belong to no concept; rows without a value add
         # nothing and would leave empty cells in the EAV CSV.
@@ -352,7 +352,7 @@ class BaseAdapter(ABC):
         l.log("Merging duplicate rows...")
         data = self._mergeDuplicates(data)
         l.log("Merging duplicate rows completed.")
-        l.log(f"Reduced to {len(data)} entities/rows in total.")
+        l.log(f"{len(data)} rows left.")
 
         # Prefix last, so the steps above (and _clean()) see the source IDs.
         if self.config.prefix:
