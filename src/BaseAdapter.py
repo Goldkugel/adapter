@@ -77,6 +77,9 @@ class BaseAdapter(ABC):
     # Prefix used if the config section doesn't set `prefix`.
     default_prefix: str = ""
 
+    # Input separator used if the config section doesn't set `separator`.
+    default_separator: str = "\t"
+
     # Subsection of "adapter" (e.g. "hpo") used if no adapter_name is
     # passed; empty means the "adapter" section itself.
     config_section: str = ""
@@ -100,7 +103,8 @@ class BaseAdapter(ABC):
               key and optionally a "logger" key) or just the settings of
               this adapter (the content of e.g. `adapter.sct`);
             - a ready BaseAdapterConfig (a copy is stored). If it does not
-              set `prefix` explicitly, the adapter's default prefix applies.
+              set `prefix` or `separator` explicitly, the adapter's default
+              prefix and separator apply.
 
             If the Logger has not been configured yet, it is configured from
             the same source: the "logger" section of the file, or the
@@ -134,7 +138,7 @@ class BaseAdapter(ABC):
         if Logger.config is None and logger_path is not None:
             Logger(logger_path)
         elif Logger.config is None and logger_settings is not None:
-            Logger.config = LoggerConfig.model_validate(logger_settings)
+            Logger(LoggerConfig.model_validate(logger_settings))
 
     def _resolveConfig(
         self,
@@ -146,16 +150,18 @@ class BaseAdapter(ABC):
 
         Returns the BaseAdapterConfig, the YAML file it came from if that
         file has a "logger" section (or None), and the "logger" section of a
-        full configuration dict (or None), so __init__ can configure the
-        Logger from the same source.
+        full configuration dict ({} for an empty one, None if there is
+        none), so __init__ can configure the Logger from the same source.
         """
         if isinstance(config, BaseAdapterConfig):
             # Copy, so later changes by the caller don't affect the adapter.
             # model_fields_set holds only explicitly passed fields, so an
             # explicit prefix="" is kept and a defaulted one is replaced.
-            if "prefix" in config.model_fields_set:
-                return config.model_copy(deep=True), None, None
-            return config.model_copy(deep=True, update={"prefix": self.default_prefix}), None, None
+            defaults = {
+                key: value for key, value in self._defaults().items()
+                if key not in config.model_fields_set
+            }
+            return config.model_copy(deep=True, update=defaults), None, None
 
         logger_path = None
         logger_settings = None
@@ -167,7 +173,10 @@ class BaseAdapter(ABC):
                 return self._validateSection(config, "", "the given dict"), None, None
             raw = config
             source = "the given configuration dict"
-            logger_settings = config.get(logger_section)
+            if logger_section in config:
+                # An empty section (None) means the Logger's defaults, as
+                # in a YAML file.
+                logger_settings = config[logger_section] or {}
         else:
             file_path = os.fspath(config)
             with open(file_path, "r", encoding="utf-8") as f:
@@ -196,11 +205,13 @@ class BaseAdapter(ABC):
             raise ValueError(f"The {name} in {source} is empty or not a mapping.")
 
         try:
-            return BaseAdapterConfig.model_validate(
-                {"prefix": self.default_prefix, **section}
-            )
+            return BaseAdapterConfig.model_validate({**self._defaults(), **section})
         except ValidationError as e:
             raise ValueError(f"Invalid {name} in {source}:\n{e}") from e
+
+    def _defaults(self) -> dict:
+        """Settings whose default depends on the adapter, unless configured."""
+        return {"prefix": self.default_prefix, "separator": self.default_separator}
 
     @abstractmethod
     def _loadFrames(self) -> list[pd.DataFrame]:
@@ -315,7 +326,7 @@ class BaseAdapter(ABC):
             frames = self._loadFrames()
         except Exception as e:
             Logger().log(f"Loading {self.ontology_name} failed: "
-                         f"{type(e).__name__}: {e}.")
+                         f"{type(e).__name__}: {e}.", level="error")
             raise
 
         return [

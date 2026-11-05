@@ -1,8 +1,3 @@
-import sys
-
-# Prevent Python from generating .pyc files (compiled bytecode files)
-sys.dont_write_bytecode = True
-
 from .BaseAdapter           import BaseAdapter
 from .BaseAdapterConfig     import BaseAdapterConfig
 from .BaseAdapterUtils      import writeHugeCSV, writeCSV, labelClass, definitionClass, commentClass, referenceClass, childrenClass, synonymClass

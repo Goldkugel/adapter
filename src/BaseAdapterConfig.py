@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict
+import codecs
+
+from pydantic import BaseModel, ConfigDict, field_validator
 
 class BaseAdapterConfig(BaseModel):
     """
@@ -43,3 +45,25 @@ class BaseAdapterConfig(BaseModel):
     # Separator of tabular input files: "\t" for SNOMED CT RF2, "|" for
     # UMLS RRF. Unused by HPO (OWL).
     separator: str          = "\t"
+
+    @field_validator("delimiter", "separator")
+    @classmethod
+    def _check_single_character(cls, value: str) -> str:
+        """
+        Reject delimiters and separators that are not one character, which
+        pandas would only reject when the file is read or written, e.g.
+        after hours of loading.
+        """
+        if len(value) != 1:
+            raise ValueError(f"must be exactly one character, got {value!r}")
+        return value
+
+    @field_validator("encoding")
+    @classmethod
+    def _check_encoding(cls, value: str) -> str:
+        """Reject encodings Python does not know, before any file is read."""
+        try:
+            codecs.lookup(value)
+        except LookupError:
+            raise ValueError(f"unknown encoding {value!r}") from None
+        return value

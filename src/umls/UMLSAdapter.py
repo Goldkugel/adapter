@@ -26,8 +26,9 @@ class UMLSAdapter(BaseAdapter):
     # Settings are read from the `adapter.umls` section.
     config_section = "umls"
 
-    # Used if the config section doesn't set `prefix`.
-    default_prefix = "UMLS:"
+    # Used if the config section doesn't set `prefix` or `separator`.
+    default_prefix    = "UMLS:"
+    default_separator = "|"
 
     def _loadFrames(self) -> list[pd.DataFrame]:
         """

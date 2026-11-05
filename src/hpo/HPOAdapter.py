@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 
 from ..BaseAdapter       import BaseAdapter
-from owlready2           import get_ontology
+from owlready2           import World
 from logger              import Logger
 from .HPOAdapterUtils    import (
     getLabels, getDefinitions, getComments,
@@ -55,7 +55,10 @@ class HPOAdapter(BaseAdapter):
         l.log(f"Loading the Human Phenotype Ontology (HPO) from '{input_file}'...")
 
         path = os.path.join(self.config.input_folder, input_file)
-        hpo = get_ontology(path).load()
+        # A World of its own: in owlready2's shared default world, a second
+        # load (another HPO release, or the same file again) would also
+        # return the triples of every earlier one.
+        hpo = World().get_ontology(path).load()
         l.log(f"Loading the Human Phenotype Ontology (HPO) from '{input_file}' completed.")
 
         extractors = [

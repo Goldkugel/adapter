@@ -27,10 +27,10 @@ jobs:
         python-version: ["3.9", "3.11", "3.14"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -39,5 +39,17 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install ".[test]"
 
-      - name: Run tests
-        run: python -m pytest -v -rs
+      # -rs lists the skipped tests (those needing hp.owl) with the reason.
+      # --cov=src measures the package code, --cov-branch both sides of
+      # every branch; term-missing lists what is not covered.
+      - name: Run tests with coverage
+        run: python -m pytest -v -rs --cov=src --cov-branch --cov-report=term-missing
+
+      # Also show the coverage table on the run's summary page.
+      - name: Add coverage to job summary
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f .coverage ]; then
+            echo "### Coverage (Python ${{ matrix.python-version }})" >> "$GITHUB_STEP_SUMMARY"
+            python -m coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+          fi

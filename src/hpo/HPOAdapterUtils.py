@@ -216,7 +216,7 @@ def getSynonymsAndTypes(
             # One row per type (load() merges them); "" gives the direct type.
             for syntype in types.get(key, [""]):
                 ids.append(getConceptIDFromString(str(row.hpoID)))
-                values.append(row.synonym)
+                values.append(str(row.synonym))
                 additional.append({
                     semanticClass : getSynonymClassFromString(str(row.synclass)),
                     sourceType    : getSynonymTypeFromString(syntype),
@@ -250,7 +250,8 @@ def _extract(
     Run `query` on `hpo` and turn every result row into an EAV row with
     `attribute` and an empty additional dict. `toIdAndValue` maps a result
     row to (id, value); `description` names it in the logs. None if `hpo`
-    is None.
+    is None. Values are plain strings, not rdflib Literals, so an empty
+    one compares equal to "" and is removed by load().
     """
     ret = None
     l = Logger()
@@ -266,7 +267,7 @@ def _extract(
         for row in g.query(query, initNs=_INIT_NS):
             concept_id, value = toIdAndValue(row)
             ids.append(concept_id)
-            values.append(value)
+            values.append(str(value))
 
         ret = pd.DataFrame({
             id_column        : ids,

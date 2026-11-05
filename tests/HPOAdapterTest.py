@@ -1,7 +1,7 @@
 """
 Tests for HPOAdapter and its configuration loading.
 
-Contains five test classes:
+Contains six test classes:
 - TestHPOAdapterInit: unit tests for configuration loading via __init__.
 - TestHPOAdapterLoad: integration tests against the real hp.owl file,
   verifying the shape and contents of the loaded EAV DataFrame.
@@ -10,6 +10,8 @@ Contains five test classes:
 - TestHPOAdapterLoadWithSampleGraph: load() end to end on that graph.
 - TestHPOAdapterUtilsHelpers: the ID, synonym class and synonym type
   helpers and the _clean() hook.
+- TestHPOAdapterWithOWLFile: load() with real owlready2 on small OWL files
+  written to a temporary folder.
 """
 
 from __future__ import annotations
@@ -352,8 +354,8 @@ class TestHPOAdapterLoadWithSampleGraph:
 
     def test_load_extracts_cleans_and_keeps_hp_ids(self, adapter, sample_hpo):
         with patch("os.path.isfile", return_value=False), \
-             patch("src.hpo.HPOAdapter.get_ontology") as mock_get_ontology:
-            mock_get_ontology.return_value.load.return_value = sample_hpo
+             patch("src.hpo.HPOAdapter.World") as mock_world:
+            mock_world.return_value.get_ontology.return_value.load.return_value = sample_hpo
             ret = adapter.load()
 
         data = adapter.data
@@ -367,14 +369,76 @@ class TestHPOAdapterLoadWithSampleGraph:
     def test_only_the_first_input_file_is_loaded(self, sample_hpo):
         adapter = HPOAdapter({"input_folder": "in/", "input_files": ["hp.owl", "extra.owl"]})
         with patch("os.path.isfile", return_value=False), \
-             patch("src.hpo.HPOAdapter.get_ontology") as mock_get_ontology, \
+             patch("src.hpo.HPOAdapter.World") as mock_world, \
              patch("src.hpo.HPOAdapter.Logger.log") as mock_log:
-            mock_get_ontology.return_value.load.return_value = sample_hpo
+            mock_world.return_value.get_ontology.return_value.load.return_value = sample_hpo
             adapter.load()
 
-        mock_get_ontology.assert_called_once_with(os.path.join("in/", "hp.owl"))
+        mock_world.return_value.get_ontology.assert_called_once_with(os.path.join("in/", "hp.owl"))
         messages = [c.args[0] for c in mock_log.call_args_list]
         assert "Only the first input file is used for HPO; ignoring ['extra.owl']." in messages
+
+
+def write_owl(folder, name, ttl):
+    """Write `ttl` as an RDF/XML ontology file (as hp.owl is) and return its name."""
+    file_name = f"{name}.owl"
+    header = (
+        "@prefix owl: <http://www.w3.org/2002/07/owl#> .\n"
+        f"<http://purl.obolibrary.org/obo/{name}.owl> a owl:Ontology .\n"
+    )
+    Graph().parse(data=header + ttl, format="turtle").serialize(
+        str(folder / file_name), format="xml"
+    )
+    return file_name
+
+
+class TestHPOAdapterWithOWLFile:
+    """
+    load() with the real owlready2 instead of a stand-in ontology, so the
+    loading of the OWL file itself is covered without hp.owl.
+    """
+
+    @staticmethod
+    def _adapter(folder, file_name):
+        return HPOAdapter({
+            "input_folder" : str(folder) + "/",
+            "input_files"  : [file_name],
+            "output_folder": str(folder / "out") + "/",
+        })
+
+    def test_load_from_an_owl_file(self, tmp_path):
+        adapter = self._adapter(tmp_path, write_owl(tmp_path, "hp_sample", SAMPLE_TTL))
+
+        assert adapter.load() > 0
+
+        data = adapter.data
+        assert set(data["id"]) == {"HP:1"}
+        assert set(data["attribute"]) == {labelClass, definitionClass, referenceClass, synonymClass}
+        # Plain strings, not rdflib Literals.
+        assert all(type(value) is str for value in data["value"])
+
+    def test_a_second_load_does_not_return_the_first_ontology(self, tmp_path):
+        first = write_owl(tmp_path, "hp_first", SAMPLE_TTL)
+        second = write_owl(tmp_path, "hp_second", HIERARCHY_TTL)
+
+        self._adapter(tmp_path, first).load()
+        adapter = self._adapter(tmp_path, second)
+        adapter.load()
+
+        assert "HP:1" not in set(adapter.data["id"])
+        assert set(adapter.data["id"]) == {"HP:10", "HP:11"}
+
+    def test_empty_values_are_removed(self, tmp_path):
+        ttl = """
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix obo:  <http://purl.obolibrary.org/obo/> .
+obo:HP_5 a owl:Class ; rdfs:label "Named", "" .
+"""
+        adapter = self._adapter(tmp_path, write_owl(tmp_path, "hp_empty", ttl))
+        adapter.load()
+
+        assert adapter.data["value"].tolist() == ["Named"]
 
 
 class TestHPOAdapterUtilsHelpers:

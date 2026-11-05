@@ -1,8 +1,9 @@
 """
 Tests for UMLSAdapter and UMLSAdapterUtils.
 
-Contains four test classes:
+Contains five test classes:
 - TestUMLSAdapterInit: unit tests for configuration loading via __init__.
+- TestUMLSAdapterDefaultSeparator: the pipe as the default separator.
 - TestUMLSAdapterLoadSkipping: tests for the skip-if-present and
   no-input-files early-exit paths.
 - TestUMLSAdapterLoad: tests for file reading, merging, cleaning,
@@ -78,6 +79,22 @@ class TestUMLSAdapterInit:
 
     def test_data_is_unset_before_load(self, adapter):
         assert adapter.data is None
+
+
+class TestUMLSAdapterDefaultSeparator:
+    """RRF files are always pipe-separated, so that is the UMLS default."""
+
+    def test_settings_without_separator_get_the_pipe(self):
+        assert UMLSAdapter({"input_files": ["MRCONSO.RRF"]}).config.separator == "|"
+
+    def test_base_adapter_config_without_separator_gets_the_pipe(self):
+        from src.BaseAdapterConfig import BaseAdapterConfig
+        assert UMLSAdapter(BaseAdapterConfig()).config.separator == "|"
+
+    def test_configured_separator_is_kept(self):
+        from src.BaseAdapterConfig import BaseAdapterConfig
+        assert UMLSAdapter({"separator": ","}).config.separator == ","
+        assert UMLSAdapter(BaseAdapterConfig(separator=",")).config.separator == ","
 
 
 class TestUMLSAdapterLoadSkipping:

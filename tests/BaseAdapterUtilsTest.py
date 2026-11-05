@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import ast
 import os
+import threading
 import pytest
 import pandas as pd
 
@@ -33,6 +34,11 @@ def make_frame():
         "value"     : ["Plain", 'Has "quotes"; and a delimiter', "Line\nbreak"],
         "additional": [{}, {"semantic_class": "exact"}, {}],
     })
+
+
+def temporary_files(folder) -> list[str]:
+    """The temporary files writeHugeCSV() left in `folder`."""
+    return [name for name in os.listdir(folder) if name.endswith(".tmp")]
 
 
 def read_back(path, separator=";", encoding="utf-8"):
@@ -59,6 +65,11 @@ class TestFilesystemHelpers:
 
         assert createFolder(str(folder)) is True
         assert folder.is_dir()
+
+    def test_create_folder_tolerates_a_folder_created_meanwhile(self, tmp_path):
+        """E.g. by another job of a Slurm array, between the check and makedirs."""
+        with patch("src.BaseAdapterUtils.isFolder", return_value=False):
+            assert createFolder(str(tmp_path)) is True
 
     def test_create_folder_returns_false_if_it_exists(self, tmp_path):
         assert createFolder(str(tmp_path)) is False
@@ -116,7 +127,7 @@ class TestWriteHugeCSV:
         assert writeHugeCSV(make_frame(), path) == 3
 
         assert read_back(path)["value"].tolist() == make_frame()["value"].tolist()
-        assert not os.path.exists(path + ".tmp")
+        assert temporary_files(tmp_path) == []
 
     def test_replaces_an_existing_file(self, tmp_path):
         path = tmp_path / "out.csv"
@@ -133,7 +144,7 @@ class TestWriteHugeCSV:
         assert writeHugeCSV(make_frame().iloc[0:0], str(path)) == 0
 
         assert path.read_text() == "old content"
-        assert not os.path.exists(str(path) + ".tmp")
+        assert temporary_files(tmp_path) == []
 
     def test_failed_write_keeps_the_existing_file_and_cleans_up(self, tmp_path):
         path = tmp_path / "out.csv"
@@ -151,7 +162,40 @@ class TestWriteHugeCSV:
                 writeHugeCSV(make_frame(), str(path))
 
         assert path.read_text() == "old content"
-        assert not os.path.exists(str(path) + ".tmp")
+        assert temporary_files(tmp_path) == []
+
+    def test_concurrent_writers_do_not_share_the_temporary_file(self, tmp_path):
+        """
+        Two threads writing the same file at once each replace it with their
+        complete content; with one shared temporary file, one would move the
+        other's half-written file into place, or fail to find its own.
+        """
+        path = str(tmp_path / "out.csv")
+        both_written = threading.Barrier(2)
+        errors = []
+
+        def write(data, file, separator, encoding):
+            with open(file, "w") as f:
+                f.write(data)
+            both_written.wait(timeout=10)
+            return 1
+
+        def writer(text):
+            try:
+                writeHugeCSV(text, path)
+            except Exception as e:
+                errors.append(e)
+
+        with patch("src.BaseAdapterUtils.writeCSV", write):
+            threads = [threading.Thread(target=writer, args=(t * 1000,)) for t in ("a", "b")]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+
+        assert errors == []
+        assert open(path).read() in ("a" * 1000, "b" * 1000)
+        assert temporary_files(tmp_path) == []
 
     def test_no_data_or_no_file_writes_nothing(self, tmp_path):
         path = tmp_path / "out.csv"

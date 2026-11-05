@@ -9,13 +9,14 @@ All adapter settings are stored in `config.yaml` under the top-level
 `adapter` section. Each subsection is keyed by the adapter's short name
 (`hpo`, `sct`, `umls`) and maps directly to a `BaseAdapterConfig` Pydantic
 model. Fields not explicitly set fall back to the defaults defined in
-`BaseAdapterConfig`, except `prefix`, which falls back to the adapter's own
-default.
+`BaseAdapterConfig`, except `prefix` and `separator`, which fall back to the
+adapter's own defaults.
 
 If the `adapter` section or the adapter's subsection is missing or empty, or
-if it contains unknown keys or invalid values, creating the adapter raises a
+if it contains unknown keys or invalid values (e.g. a `delimiter` of more
+than one character, or an unknown `encoding`), creating the adapter raises a
 `ValueError` that names the section and the configuration file (or says
-that it came from a dict). A configuration file that does not exist raises a
+that it came from a dict), before any input file is read. A configuration file that does not exist raises a
 `FileNotFoundError`.
 
 The same settings can also be passed as a dict (a whole configuration like
@@ -32,9 +33,9 @@ the main README.
 | `input_files` | list of strings | `[]` | File names to load from `input_folder`. |
 | `output_folder` | string | `"./data/output/transformed/"` | Directory where the output CSV is written. Created automatically if it does not exist. |
 | `output_file` | string | `"ontology.csv"` | Name of the output CSV file within `output_folder`. |
-| `delimiter` | string | `";"` | Field delimiter used in the output CSV. |
-| `encoding` | string | `"utf-8"` | Character encoding used for both reading input files and writing the output CSV. |
-| `separator` | string | `"\t"` | Field separator used when reading tabular input files (e.g. RF2 or RRF files). |
+| `delimiter` | string | `";"` | Field delimiter used in the output CSV; exactly one character. |
+| `encoding` | string | `"utf-8"` | Character encoding used for both reading input files and writing the output CSV. Must be an encoding Python knows. |
+| `separator` | string | adapter-specific: `"\t"` (HPO, SNOMED CT), `"\|"` (UMLS) | Field separator used when reading tabular input files (e.g. RF2 or RRF files); exactly one character. |
 | `prefix` | string | adapter-specific: `""` (HPO), `"SNOMEDCT_US:"` (SNOMED CT), `"UMLS:"` (UMLS) | Prefix added to every ID and to the value of every `child` row. |
 | `skip_if_present` | boolean | `false` | If `true`, `load()` returns immediately when the output file already exists, without re-parsing the source files. |
 | `id_column` | string | `"id"` | Name of the EAV identifier column in the output CSV. |
@@ -161,7 +162,8 @@ log message. In the configuration above, this applies to `MRRANK`, `MRREL`,
 `MRSAT` and `MRSTY`; they are listed but not processed.
 
 **Notes:**
-- `separator` must be `"|"` (pipe) — the standard RRF delimiter.
+- `separator` must be `"|"` (pipe) — the standard RRF delimiter, and the
+  default of the UMLS adapter if `separator` is not set.
 - RRF has no quoting: strings are read verbatim (quote characters included),
   and values such as `NA` are kept as strings rather than treated as missing.
 - CUIs are prefixed with `prefix` (`UMLS:`, the form HPO uses in its

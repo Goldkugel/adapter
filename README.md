@@ -204,7 +204,7 @@ adapter = SCTAdapter({"input_files": [...], "output_file": "sct.csv"})
 adapter = SCTAdapter(BaseAdapterConfig(input_files=[...]))
 ```
 
-If `prefix` is not set, the adapter's default prefix applies in all three cases (e.g. `SNOMEDCT_US:` for SNOMED CT).
+If `prefix` or `separator` is not set, the adapter's default applies in all three cases (e.g. the prefix `SNOMEDCT_US:` for SNOMED CT, the separator `|` for UMLS).
 
 When working directly in a clone of this repository without installing it, import from `src` instead (`from src import HPOAdapter`). Paths in the configuration are relative to the working directory, so run from the repository root.
 
@@ -216,7 +216,7 @@ The resulting CSV is written to the configured output directory.
 
 To support another ontology:
 
-1. Subclass `BaseAdapter`, set `ontology_name` (used in log messages), `config_section` (the key under `adapter` in the configuration, e.g. `hpo`) and `default_prefix`, and implement `_loadFrames()` to return the EAV rows read from the input files. The shared `load()` merges and cleans them, merges duplicate rows and adds the prefix; override `_clean()` for source-specific cleaning.
+1. Subclass `BaseAdapter`, set `ontology_name` (used in log messages), `config_section` (the key under `adapter` in the configuration, e.g. `hpo`), `default_prefix` and, for tabular input, `default_separator`, and implement `_loadFrames()` to return the EAV rows read from the input files. The shared `load()` merges and cleans them, merges duplicate rows and adds the prefix; override `_clean()` for source-specific cleaning.
 2. Use the shared EAV attribute-name constants from `BaseAdapterUtils` (e.g. `labelClass`, `synonymClass`) to keep attribute names consistent across adapters.
 3. Add a configuration section for the new adapter to `config/config.yaml`, following the same structure as the existing adapter sections.
 4. Export the new adapter class from `src/__init__.py`.
@@ -234,6 +234,8 @@ The project uses the external `logger` package for consistent logging during:
 - validation
 - CSV export
 - directory creation
+
+If an adapter cannot read its input, the reason is logged as an error before the exception is raised, so the log file shows why a run stopped.
 
 The logger is a process-wide singleton. If it has not been configured yet when an adapter is created, it is configured from the same source: the `logger` section of the YAML file, or the `logger` key of a full configuration dict. Otherwise (adapter settings only, or a `BaseAdapterConfig`) configure it first with `Logger("path/to/config.yaml")`, or it falls back to `./config/config.yaml`.
 
@@ -253,9 +255,9 @@ Run the test suite with pytest from the repository root (the test files in `test
 pytest
 ```
 
-Most tests use mocks or small temporary files. The `TestHPOAdapterLoad` tests are integration tests and need the real `hp.owl` in `data/input/hpo/`; without it they are skipped.
+Most tests use mocks or small temporary files; the HPO adapter is also run with owlready2 on small OWL files written by the tests. The `TestHPOAdapterLoad` tests are integration tests and need the real `hp.owl` in `data/input/hpo/`; without it they are skipped.
 
-A GitHub Actions workflow (`.github/workflows/tests.yml`) runs the tests on Python 3.9, 3.11 and 3.14 on every push and pull request. The input files are not checked in, so the `hp.owl` integration tests are skipped there.
+A GitHub Actions workflow (`.github/workflows/tests.yml`) runs the tests on Python 3.9, 3.11 and 3.14 on every push and pull request and reports the line and branch coverage in the job log and on the run's summary page. The input files are not checked in, so the `hp.owl` integration tests are skipped there.
 
 Place ontology input files inside the appropriate directory under `data/input/` before running an adapter.
 

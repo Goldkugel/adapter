@@ -39,17 +39,19 @@ repository root, one `<Name>AdapterTest.py` per adapter plus
    validates the section `adapter.<name>` (e.g. `adapter.sct`) into a
    `BaseAdapterConfig`. It also accepts just the adapter's settings as a
    dict, or a ready `BaseAdapterConfig` (of which it stores a copy).
-   Unknown keys are rejected. If `prefix` isn't set, the adapter's
-   `default_prefix` applies. A missing, empty or invalid section raises a
+   Unknown keys and invalid values are rejected. If `prefix` or
+   `separator` isn't set, the adapter's `default_prefix` or
+   `default_separator` applies. A missing, empty or invalid section raises a
    `ValueError` naming the section. If the logger is not configured yet,
    it is configured from the `logger` section of the same file or dict.
 2. **Loading** – `load()` calls the adapter's `_loadFrames()`, which reads
    the configured input files and converts each into a DataFrame with the
    four EAV columns (`id`, `attribute`, `value`, `additional`). The column
    names come from the configuration.
-   - **HPO** loads `hp.owl` with owlready2 and runs one SPARQL query per
-     attribute (labels, definitions, comments, children, references,
-     synonyms) on its rdflib view.
+   - **HPO** loads `hp.owl` with owlready2, in a `World` of its own so
+     that an earlier load in the same process cannot leak in, and runs one
+     SPARQL query per attribute (labels, definitions, comments, children,
+     references, synonyms) on its rdflib view. Values are plain strings.
    - **SNOMED CT** picks a reader/transformer per RF2 file by filename
      prefix, keeps only the latest version of each component in Full
      release files, keeps active rows, and restricts everything to active
@@ -67,8 +69,9 @@ repository root, one `<Name>AdapterTest.py` per adapter plus
 4. **Prefixing** – `load()` adds the configured `prefix` to every ID and to
    the value of every `child` row.
 5. **Export** – `to_csv()` writes `self.data` to
-   `<output_folder>/<output_file>`. It writes to a temporary file first and
-   then replaces the target, so an interrupted run never leaves a
+   `<output_folder>/<output_file>`. It writes to a temporary file first
+   (named after the process and thread, so parallel jobs never share one)
+   and then replaces the target, so an interrupted run never leaves a
    half-written CSV.
 
 `load()` does nothing if no input files are configured, or if
@@ -108,7 +111,7 @@ pytest
 
 (`pyproject.toml` points pytest at `tests/`, collects the `*Test.py`
 files and puts the repository root on the import path, so the tests can
-import the package as `src`.) Most tests use mocks, small temporary RF2/RRF files or an
-in-memory RDF graph; `BaseAdapterTest.py` uses a minimal dummy adapter.
+import the package as `src`.) Most tests use mocks, small temporary
+RF2/RRF/OWL files or an in-memory RDF graph; `BaseAdapterTest.py` uses a minimal dummy adapter.
 `TestHPOAdapterLoad` needs the real `data/input/hpo/hp.owl` and is skipped
 without it.

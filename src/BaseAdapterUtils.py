@@ -12,6 +12,7 @@ from logger     import Logger
 import pandas   as pd
 import os
 import csv
+import threading
 
 # --- EAV attribute names (values of the attribute column) ---
 
@@ -159,7 +160,9 @@ def createFolder(path: str = "") -> bool:
     base_name = os.path.basename(path)
 
     if not isFolder(path):
-        os.makedirs(path)
+        # exist_ok: another job (e.g. of a Slurm array) may create it at the
+        # same moment.
+        os.makedirs(path, exist_ok=True)
         l.log(f"Folder '{base_name}' created.")
         ret = True
     else:
@@ -233,7 +236,9 @@ def writeHugeCSV(
 
     An interrupted write never leaves a partial file at `file`; the
     temporary file is removed even if the write fails. An existing file
-    is not replaced if no rows were written.
+    is not replaced if no rows were written. The temporary file is named
+    after the process and thread, so two writers of the same file never
+    share one.
 
     Parameters
     ----------
@@ -261,7 +266,7 @@ def writeHugeCSV(
         l.log("File has not been specified and is empty.")
         return ret
 
-    tmpfile = file + ".tmp"
+    tmpfile = f"{file}.{os.getpid()}-{threading.get_ident()}.tmp"
 
     l.log("Writing to a temporary file first...")
 

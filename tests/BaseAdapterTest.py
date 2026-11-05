@@ -1,11 +1,14 @@
 """
 Tests for BaseAdapter.
 
-Contains five test classes:
+Contains seven test classes:
 - TestBaseAdapterConfigErrors: clear errors for missing or invalid
   configuration sections.
 - TestBaseAdapterConfigSources: configuration from a YAML path, a dict or
   a BaseAdapterConfig, and configuring the Logger from the same source.
+- TestBaseAdapterConfigValidation: delimiter, separator and encoding are
+  checked when the configuration is loaded.
+- TestPackageImport: importing the package has no side effects.
 - TestBaseAdapterPrefix: the adapter's default prefix and the configured
   prefix.
 - TestBaseAdapterLoad: the shared steps of load() (merging, cleaning,
@@ -15,7 +18,10 @@ Contains five test classes:
 
 from __future__ import annotations
 
+import os
 import pathlib
+import subprocess
+import sys
 import pytest
 import pandas as pd
 import yaml
@@ -168,6 +174,10 @@ class TestBaseAdapterConfigSources:
         })
         assert Logger.config.file_name == "dict.log"
 
+    def test_empty_logger_section_of_a_dict_means_the_defaults(self, fresh_logger):
+        DummyAdapter({"logger": None, "adapter": {"dummy": {}}})
+        assert Logger.config == LoggerConfig()
+
     def test_existing_logger_configuration_is_kept(self, tmp_path, fresh_logger):
         Logger.config = LoggerConfig(folder=str(tmp_path) + "/", file_name="kept.log")
         DummyAdapter({
@@ -175,6 +185,37 @@ class TestBaseAdapterConfigSources:
             "adapter": {"dummy": {}},
         })
         assert Logger.config.file_name == "kept.log"
+
+
+class TestBaseAdapterConfigValidation:
+    """Settings pandas would only reject when a file is read or written."""
+
+    @pytest.mark.parametrize("settings", [
+        {"delimiter": ";;"},
+        {"delimiter": ""},
+        {"separator": "||"},
+        {"encoding": "utf-9"},
+    ])
+    def test_invalid_settings_are_rejected_when_loaded(self, settings):
+        with pytest.raises(ValueError, match="Invalid adapter settings"):
+            DummyAdapter(settings)
+
+    def test_valid_settings_are_accepted(self):
+        adapter = DummyAdapter({"delimiter": "|", "separator": "\t", "encoding": "latin-1"})
+        assert (adapter.config.delimiter, adapter.config.separator) == ("|", "\t")
+
+
+class TestPackageImport:
+
+    def test_import_does_not_change_the_bytecode_setting(self):
+        """Importing the package must not switch off .pyc files for the whole process."""
+        env = {key: value for key, value in os.environ.items() if key != "PYTHONDONTWRITEBYTECODE"}
+        env["PYTHONPATH"] = os.pathsep.join(sys.path)
+        result = subprocess.run(
+            [sys.executable, "-c", "import sys, src; print(sys.dont_write_bytecode)"],
+            capture_output=True, text=True, env=env,
+        )
+        assert result.stdout.strip() == "False", result.stderr
 
 
 class TestBaseAdapterPrefix:
@@ -263,8 +304,8 @@ class TestBaseAdapterLoad:
             with pytest.raises(OSError, match="disk gone"):
                 adapter.load()
 
-        messages = [c.args[0] for c in mock_log.call_args_list]
-        assert "Loading dummy failed: OSError: disk gone." in messages
+        logged = [(c.args[0], c.kwargs.get("level", "info")) for c in mock_log.call_args_list]
+        assert ("Loading dummy failed: OSError: disk gone.", "error") in logged
         assert adapter.data is None
 
     @patch("os.path.isfile", return_value=False)
