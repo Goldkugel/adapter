@@ -20,7 +20,7 @@ import pytest
 import pandas as pd
 
 from unittest.mock        import patch
-from src.BaseAdapterUtils import (
+from adapter.BaseAdapterUtils import (
     isFile, isFolder, createFolder, writeCSV, writeHugeCSV,
     labelClass, synonymClass, mergeAdditional, additionalSeparator,
 )
@@ -68,7 +68,7 @@ class TestFilesystemHelpers:
 
     def test_create_folder_tolerates_a_folder_created_meanwhile(self, tmp_path):
         """E.g. by another job of a Slurm array, between the check and makedirs."""
-        with patch("src.BaseAdapterUtils.isFolder", return_value=False):
+        with patch("adapter.BaseAdapterUtils.isFolder", return_value=False):
             assert createFolder(str(tmp_path)) is True
 
     def test_create_folder_returns_false_if_it_exists(self, tmp_path):
@@ -186,7 +186,7 @@ class TestWriteHugeCSV:
             except Exception as e:
                 errors.append(e)
 
-        with patch("src.BaseAdapterUtils.writeCSV", write):
+        with patch("adapter.BaseAdapterUtils.writeCSV", write):
             threads = [threading.Thread(target=writer, args=(t * 1000,)) for t in ("a", "b")]
             for thread in threads:
                 thread.start()

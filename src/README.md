@@ -102,16 +102,16 @@ Source-specific keys of the `additional` dict are defined in the respective
 
 ## Tests
 
-Run from the repository root, so that the relative paths in the
-configuration and the `src.` patch targets in the tests resolve:
+The tests import the installed package `adapter`, so install it first
+(`pip install -e ".[test]"`), and run them from the repository root, so
+that the relative paths in the configuration resolve:
 
 ```bash
 pytest
 ```
 
-(`pyproject.toml` points pytest at `tests/`, collects the `*Test.py`
-files and puts the repository root on the import path, so the tests can
-import the package as `src`.) Most tests use mocks, small temporary
-RF2/RRF/OWL files or an in-memory RDF graph; `BaseAdapterTest.py` uses a minimal dummy adapter.
+(`pyproject.toml` points pytest at `tests/` and collects the `*Test.py`
+files.) Most tests use mocks, small temporary RF2/RRF/OWL files or an
+in-memory RDF graph; `BaseAdapterTest.py` uses a minimal dummy adapter.
 `TestHPOAdapterLoad` needs the real `data/input/hpo/hp.owl` and is skipped
 without it.

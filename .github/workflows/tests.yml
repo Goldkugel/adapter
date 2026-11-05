@@ -3,9 +3,10 @@
 # The ontology input files (data/input/) are not checked in, so the
 # integration tests that need the real hp.owl are skipped; all other tests
 # use mocks or small in-memory data. Tests are run from the repository
-# root, because the tests and the logger read ./config/config.yaml and the
-# test files import the package as "src" (see [tool.pytest.ini_options] in
-# pyproject.toml).
+# root, because the tests and the logger read ./config/config.yaml. The
+# package is installed from the checkout (not in editable mode) and the
+# tests import it as "adapter", so the run also checks that pyproject.toml
+# packages every module and declares every runtime dependency.
 
 name: Tests
 
@@ -40,10 +41,10 @@ jobs:
           python -m pip install ".[test]"
 
       # -rs lists the skipped tests (those needing hp.owl) with the reason.
-      # --cov=src measures the package code, --cov-branch both sides of
-      # every branch; term-missing lists what is not covered.
+      # --cov=adapter measures the installed package, --cov-branch both
+      # sides of every branch; term-missing lists what is not covered.
       - name: Run tests with coverage
-        run: python -m pytest -v -rs --cov=src --cov-branch --cov-report=term-missing
+        run: python -m pytest -v -rs --cov=adapter --cov-branch --cov-report=term-missing
 
       # Also show the coverage table on the run's summary page.
       - name: Add coverage to job summary

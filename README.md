@@ -206,7 +206,7 @@ adapter = SCTAdapter(BaseAdapterConfig(input_files=[...]))
 
 If `prefix` or `separator` is not set, the adapter's default applies in all three cases (e.g. the prefix `SNOMEDCT_US:` for SNOMED CT, the separator `|` for UMLS).
 
-When working directly in a clone of this repository without installing it, import from `src` instead (`from src import HPOAdapter`). Paths in the configuration are relative to the working directory, so run from the repository root.
+To work on a clone of this repository, install it in editable mode (`pip install -e .`), so `import adapter` uses the files in `src/`. Paths in the configuration are relative to the working directory, so run from the repository root.
 
 The resulting CSV is written to the configured output directory.
 
@@ -249,7 +249,7 @@ Install in editable mode, with the test dependencies:
 pip install -e ".[test]"
 ```
 
-Run the test suite with pytest from the repository root (the test files in `tests/` are named `*Test.py`; `pyproject.toml` configures pytest to collect them and to import the package as `src`):
+Run the test suite with pytest from the repository root (the test files in `tests/` are named `*Test.py`, which `pyproject.toml` configures pytest to collect). The tests import the installed package `adapter`, so install it first, as above:
 
 ```bash
 pytest

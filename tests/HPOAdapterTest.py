@@ -22,8 +22,8 @@ import pytest
 
 from unittest.mock           import MagicMock, patch
 from rdflib                  import Graph
-from src.hpo.HPOAdapter      import HPOAdapter
-from src.hpo.HPOAdapterUtils import (
+from adapter.hpo.HPOAdapter      import HPOAdapter
+from adapter.hpo.HPOAdapterUtils import (
     getSynonymsAndTypes, getReferences, getComments, getChildren,
     getConceptIDFromString, getSynonymClassFromString, getSynonymTypeFromString,
     semanticClass, sourceType, exactSynonymClass, relatedSynonymClass,
@@ -33,7 +33,7 @@ from src.hpo.HPOAdapterUtils import (
     ukSpellingSynonymType, allelicRequirementSynonymType,
 )
 import pandas as pd
-from src.BaseAdapterUtils    import (
+from adapter.BaseAdapterUtils    import (
     labelClass, definitionClass, commentClass,
     referenceClass, childrenClass, synonymClass,
 )
@@ -354,7 +354,7 @@ class TestHPOAdapterLoadWithSampleGraph:
 
     def test_load_extracts_cleans_and_keeps_hp_ids(self, adapter, sample_hpo):
         with patch("os.path.isfile", return_value=False), \
-             patch("src.hpo.HPOAdapter.World") as mock_world:
+             patch("adapter.hpo.HPOAdapter.World") as mock_world:
             mock_world.return_value.get_ontology.return_value.load.return_value = sample_hpo
             ret = adapter.load()
 
@@ -369,8 +369,8 @@ class TestHPOAdapterLoadWithSampleGraph:
     def test_only_the_first_input_file_is_loaded(self, sample_hpo):
         adapter = HPOAdapter({"input_folder": "in/", "input_files": ["hp.owl", "extra.owl"]})
         with patch("os.path.isfile", return_value=False), \
-             patch("src.hpo.HPOAdapter.World") as mock_world, \
-             patch("src.hpo.HPOAdapter.Logger.log") as mock_log:
+             patch("adapter.hpo.HPOAdapter.World") as mock_world, \
+             patch("adapter.hpo.HPOAdapter.Logger.log") as mock_log:
             mock_world.return_value.get_ontology.return_value.load.return_value = sample_hpo
             adapter.load()
 

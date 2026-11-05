@@ -16,18 +16,18 @@ from __future__ import annotations
 import os
 
 from unittest.mock             import patch
-from src.umls.UMLSAdapter      import UMLSAdapter
-from src.umls.UMLSAdapterUtils import readRRFFileByPath
-from src.umls                  import UMLSAdapterUtils
-from src.BaseAdapterUtils      import referenceClass, labelClass
-from src.umls.UMLSAdapterUtils import sourceAbbreviation
+from adapter.umls.UMLSAdapter      import UMLSAdapter
+from adapter.umls.UMLSAdapterUtils import readRRFFileByPath
+from adapter.umls                  import UMLSAdapterUtils
+from adapter.BaseAdapterUtils      import referenceClass, labelClass
+from adapter.umls.UMLSAdapterUtils import sourceAbbreviation
 import pandas       as pd
 import yaml
 import pytest
 
 # UMLSAdapter imports readRRFFileByPath into its own namespace, so it is
-# patched under "src.umls.UMLSAdapter", where it is looked up.
-PATCH_MODULE = "src.umls.UMLSAdapter"
+# patched under "adapter.umls.UMLSAdapter", where it is looked up.
+PATCH_MODULE = "adapter.umls.UMLSAdapter"
 
 
 @pytest.fixture
@@ -88,11 +88,11 @@ class TestUMLSAdapterDefaultSeparator:
         assert UMLSAdapter({"input_files": ["MRCONSO.RRF"]}).config.separator == "|"
 
     def test_base_adapter_config_without_separator_gets_the_pipe(self):
-        from src.BaseAdapterConfig import BaseAdapterConfig
+        from adapter.BaseAdapterConfig import BaseAdapterConfig
         assert UMLSAdapter(BaseAdapterConfig()).config.separator == "|"
 
     def test_configured_separator_is_kept(self):
-        from src.BaseAdapterConfig import BaseAdapterConfig
+        from adapter.BaseAdapterConfig import BaseAdapterConfig
         assert UMLSAdapter({"separator": ","}).config.separator == ","
         assert UMLSAdapter(BaseAdapterConfig(separator=",")).config.separator == ","
 

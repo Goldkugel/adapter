@@ -18,15 +18,15 @@ from __future__ import annotations
 import os
 
 from unittest.mock           import MagicMock, patch
-from src.sct.SCTAdapter      import SCTAdapter
-from src.sct.SCTAdapterUtils import (
+from adapter.sct.SCTAdapter      import SCTAdapter
+from adapter.sct.SCTAdapterUtils import (
     conceptPrefix, rf2SourceId,
     readConceptFile, getConcepts, getChildren, readRF2FileByPath,
     removeNotActiveConcepts,
     fsnTypeId, synonymTypeId, definitionTypeId, isARelationshipTypeId,
     referenceOntology,
 )
-from src.BaseAdapterUtils    import (
+from adapter.BaseAdapterUtils    import (
     childrenClass, labelClass, synonymClass, definitionClass, referenceClass,
 )
 import pandas           as pd
@@ -38,8 +38,8 @@ DESCRIPTION_FILE  = "sct2_Description_Full-en_INT_20260701.txt"
 RELATIONSHIP_FILE = "sct2_Relationship_Full_INT_20260701.txt"
 
 # SCTAdapter imports its helpers into its own namespace, so they are
-# patched under "src.sct.SCTAdapter", where they are looked up.
-PATCH_TARGET = "src.sct.SCTAdapter"
+# patched under "adapter.sct.SCTAdapter", where they are looked up.
+PATCH_TARGET = "adapter.sct.SCTAdapter"
 
 
 @pytest.fixture

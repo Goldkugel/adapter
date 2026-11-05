@@ -27,15 +27,13 @@ packages = [
 "adapter" = "src"
 
 [project.optional-dependencies]
-# pytest 7 is the first version with the `pythonpath` setting below;
 # pytest-cov reports the test coverage in CI.
 test = ["pytest>=7", "pytest-cov"]
 
 [tool.pytest.ini_options]
 # The tests live in tests/ as <Name>Test.py and are run from the
 # repository root (plain "pytest"), where ./config/config.yaml is found.
-# They import the package as "src", so the repository root is put on
-# sys.path; tests/ is not part of the installed package.
+# They import the installed package ("adapter"), so install it first
+# (pip install -e ".[test]" for development); tests/ is not part of it.
 testpaths    = ["tests"]
 python_files = ["*Test.py"]
-pythonpath   = ["."]

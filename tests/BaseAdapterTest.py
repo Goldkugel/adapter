@@ -28,9 +28,9 @@ import yaml
 
 from unittest.mock         import patch
 from logger                import Logger, LoggerConfig
-from src.BaseAdapter       import BaseAdapter
-from src.BaseAdapterConfig import BaseAdapterConfig
-from src.BaseAdapterUtils  import labelClass, childrenClass
+from adapter.BaseAdapter       import BaseAdapter
+from adapter.BaseAdapterConfig import BaseAdapterConfig
+from adapter.BaseAdapterUtils  import labelClass, childrenClass
 
 
 class DummyAdapter(BaseAdapter):
@@ -212,7 +212,7 @@ class TestPackageImport:
         env = {key: value for key, value in os.environ.items() if key != "PYTHONDONTWRITEBYTECODE"}
         env["PYTHONPATH"] = os.pathsep.join(sys.path)
         result = subprocess.run(
-            [sys.executable, "-c", "import sys, src; print(sys.dont_write_bytecode)"],
+            [sys.executable, "-c", "import sys, adapter; print(sys.dont_write_bytecode)"],
             capture_output=True, text=True, env=env,
         )
         assert result.stdout.strip() == "False", result.stderr
