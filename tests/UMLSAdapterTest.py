@@ -5,8 +5,8 @@ Contains four test classes:
 - TestUMLSAdapterInit: unit tests for configuration loading via __init__.
 - TestUMLSAdapterLoadSkipping: tests for the skip-if-present and
   no-input-files early-exit paths.
-- TestUMLSAdapterLoad: tests for file reading, merging, cleaning, and
-  the row count returned by load().
+- TestUMLSAdapterLoad: tests for file reading, merging, cleaning,
+  merging duplicate rows and the row count returned by load().
 - TestUMLSAdapterUtilsParsing: tests for reading real RRF content.
 """
 
@@ -32,11 +32,8 @@ PATCH_MODULE = "src.umls.UMLSAdapter"
 @pytest.fixture
 def config_path(tmp_path):
     """
-    Write a minimal adapter config YAML to a temp file and return its
-    path. Only `input_files` is set explicitly; every other field —
-    input_folder, output_folder, output_file, skip_if_present, the four
-    EAV column names, encoding, separator — is left unset so
-    BaseAdapterConfig's own defaults apply.
+    Write a config setting only `input_files` (MRCONSO, MRDEF), so every
+    other field has its BaseAdapterConfig default; return its path.
     """
     config = {
         "adapter": {
@@ -53,6 +50,7 @@ def config_path(tmp_path):
 
 @pytest.fixture
 def adapter(config_path):
+    """A UMLSAdapter built from config_path."""
     return UMLSAdapter(config=config_path)
 
 
@@ -138,9 +136,9 @@ class TestUMLSAdapterLoadSkipping:
 
 class TestUMLSAdapterLoad:
     """
-    Tests for file reading, DataFrame merging, post-processing
-    (ID/value cleaning, deduplication), and the row count returned
-    by UMLSAdapter.load().
+    Tests for file reading, DataFrame merging, removing rows without an
+    ID or value, merging duplicate rows (joining their sources) and the
+    row count returned by UMLSAdapter.load().
     """
 
     @patch("os.path.isfile", return_value=False)
@@ -392,6 +390,7 @@ class TestUMLSAdapterUtilsParsing:
 
         frame = readRRFFileByPath(str(path), "id", "attribute", "value", "additional", "utf-8", "|")
 
+        # The reader keeps both rows; load() merges them later.
         labels = frame[frame["attribute"] == labelClass]
         assert [a[sourceAbbreviation] for a in labels["additional"]] == ["MSH", "NCI"]
 

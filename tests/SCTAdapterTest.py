@@ -44,6 +44,7 @@ PATCH_TARGET = "src.sct.SCTAdapter"
 
 @pytest.fixture
 def config_path(tmp_path):
+    """Write a config with a Concept, Description and Relationship file."""
     config = {
         "adapter": {
             "sct": {
@@ -59,6 +60,7 @@ def config_path(tmp_path):
 
 @pytest.fixture
 def adapter(config_path):
+    """An SCTAdapter built from config_path."""
     return SCTAdapter(config=config_path)
 
 

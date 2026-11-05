@@ -39,27 +39,18 @@ from src.BaseAdapterUtils    import (
 
 @pytest.fixture
 def adapter():
-    """
-    Build an HPOAdapter passing the path relative to the repo root.
-    """
+    """Build an HPOAdapter from ./config/config.yaml (run from the repo root)."""
     return HPOAdapter(config="./config/config.yaml")
 
 
 @pytest.fixture(scope="module")
 def loaded_adapter():
     """
-    Build an HPOAdapter and run the real load() once for the whole
-    module - this parses the actual configured hp.owl file via
-    owlready2 and runs the real HPOAdapterUtils extractors against it,
-    with no mocking involved. Scoped to the module (rather than
-    per-function) since re-parsing the full ontology for every test
-    would be expensive and these tests only read the result, never
-    mutate it.
+    Run the real load() on the configured hp.owl once per module, as
+    parsing the full ontology is slow; the tests only read the result.
 
-    Requires owlready2 to be installed and the real ontology file to
-    exist at the path configured in ./config/config.yaml. Without the
-    file (e.g. in CI, where data/input/ is not checked in), the tests
-    using this fixture are skipped.
+    Skips the tests if the file is missing (e.g. in CI, where data/input/
+    is not checked in).
     """
     a = HPOAdapter(config="./config/config.yaml")
     path = os.path.join(a.config.input_folder, a.config.input_files[0])
@@ -104,10 +95,9 @@ class TestHPOAdapterInit:
 
 class TestHPOAdapterLoad:
     """
-    Integration tests against the real hp.owl file - no mocking of
-    get_ontology or HPOAdapterUtils. Assertions check the shape and
-    general contents of the real output rather than exact row counts,
-    since those depend on whatever the actual ontology file contains.
+    Integration tests against the real hp.owl file, without mocking.
+    They check the shape and general contents of the output, not exact
+    row counts, which depend on the HPO release.
     """
 
     def test_load_returns_a_positive_row_count(self, loaded_adapter):
@@ -263,15 +253,13 @@ def graph_hpo(ttl):
 
 @pytest.fixture
 def hierarchy_hpo():
+    """A stand-in ontology whose RDF graph is HIERARCHY_TTL."""
     return graph_hpo(HIERARCHY_TTL)
 
 
 @pytest.fixture
 def sample_hpo():
-    """
-    A stand-in for an owlready2 ontology whose RDF graph is SAMPLE_TTL,
-    so the real SPARQL queries in HPOAdapterUtils can run without hp.owl.
-    """
+    """A stand-in ontology whose RDF graph is SAMPLE_TTL (see graph_hpo())."""
     hpo = MagicMock()
     hpo.world.as_rdflib_graph.return_value = Graph().parse(data=SAMPLE_TTL, format="turtle")
     return hpo

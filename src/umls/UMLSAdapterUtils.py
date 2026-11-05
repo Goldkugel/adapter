@@ -198,7 +198,7 @@ def _readRRFFile(
     All columns are read as strings, quote characters are kept, and NA
     detection is off so "NA" (sodium) or "None" stay strings; empty fields
     become "". The file is read in chunks of rrfChunkSize rows, each
-    filtered by rowFilter, so it is never held in memory at once.
+    filtered by rowFilter, so the whole file is never held in memory.
 
     Parameters
     ----------

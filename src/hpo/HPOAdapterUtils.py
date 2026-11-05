@@ -21,9 +21,10 @@ relatedSynonymClass     : str = "related"
 broadSynonymClass       : str = "broad"
 narrowSynonymClass      : str = "narrow"
 
-# Synonym types (key sourceType of the additional dict).
+# Synonym types (key sourceType of the additional dict). Merged duplicate
+# rows join several types, e.g. "layperson, abbreviation".
 sourceType                    : str = "source_type"
-expertSynonymType             : str = "expert"
+expertSynonymType             : str = "expert"   # Exported; no HPO marker maps to it.
 laypersonSynonymType          : str = "layperson"
 abbreviationSynonymType       : str = "abbreviation"
 obsoleteSynonymType           : str = "obsolete"

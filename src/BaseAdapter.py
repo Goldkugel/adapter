@@ -232,8 +232,8 @@ class BaseAdapter(ABC):
     def _mergeDuplicates(self, data: pd.DataFrame) -> pd.DataFrame:
         """
         Merge the rows with the same (id, attribute, value) into their first
-        row and merge their additional info into it (see mergeAdditional());
-        rows without duplicates are kept as they are.
+        row, combining their additional dicts with mergeAdditional(); rows
+        without duplicates are kept as they are.
         """
         key        = [self.config.id_column, self.config.attribute_column, self.config.value_column]
         additional = self.config.additional_column
@@ -245,6 +245,8 @@ class BaseAdapter(ABC):
             merged = data[duplicated].groupby(key, sort=False)[additional].agg(
                 lambda entries: mergeAdditional(entries.tolist()))
 
+            # `merged` is indexed by key; reindex it in the order of the
+            # first rows. The object column can hold the merged dicts.
             targets = data[duplicated & first]
             values  = merged.reindex(pd.MultiIndex.from_frame(targets[key])).tolist()
             column  = data[additional].astype(object)
@@ -255,14 +257,12 @@ class BaseAdapter(ABC):
 
     def load(self) -> int:
         """
-        Load and parse the ontology from the input files named in the
-        configuration, and store the EAV rows in self.data.
+        Load the ontology from the configured input files and store the
+        EAV rows in self.data.
 
-        Reads the input via `_loadFrames()`, merges the frames, removes
-        rows without an ID or value, applies `_clean()`, merges
-        duplicate (id, attribute, value) rows and adds the configured
-        prefix. Does nothing if no input files are configured, or if
-        `skip_if_present` is set and the output file already exists.
+        Reads the input via `_loadFrames()`, then runs `_process()`. Does
+        nothing if no input files are configured, or if `skip_if_present`
+        is set and the output file already exists.
 
         Returns
         -------
@@ -326,8 +326,9 @@ class BaseAdapter(ABC):
     def _process(self, frames: list[pd.DataFrame]) -> pd.DataFrame:
         """
         Run the shared steps of `load()` on the frames read from the
-        input: merge, remove rows without an ID or value, `_clean()`,
-        merge duplicates and add the prefix. Returns the result.
+        input: concatenate them, remove rows without an ID or value, apply
+        `_clean()`, merge duplicate (id, attribute, value) rows and add the
+        prefix. Returns the result.
         """
         l = Logger()
 

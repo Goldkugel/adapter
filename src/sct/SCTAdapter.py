@@ -61,8 +61,8 @@ class SCTAdapter(BaseAdapter):
         Returns
         -------
         list[pd.DataFrame]
-            One EAV DataFrame per recognised RF2 file (excluding the
-            Concept file, which only provides the active-concept filter).
+            One EAV DataFrame per recognised RF2 file other than the
+            Concept file.
         """
         # The Concept file only provides the active-concept filter; it is
         # required, since without it inactive concepts can't be removed.

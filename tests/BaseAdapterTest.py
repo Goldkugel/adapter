@@ -48,7 +48,7 @@ class DummyAdapter(BaseAdapter):
 
 @pytest.fixture
 def fresh_logger():
-    """Starts the test with an unconfigured Logger and restores the previous
+    """Start the test with an unconfigured Logger and restore the previous
     singleton state afterwards."""
     saved = (Logger._instance, Logger.config, Logger.start_time)
     Logger._instance  = None
@@ -59,6 +59,7 @@ def fresh_logger():
 
 
 def write_config(tmp_path, content) -> str:
+    """Write `content` as config.yaml into tmp_path and return its path."""
     path = tmp_path / "config.yaml"
     with open(path, "w") as f:
         yaml.safe_dump(content, f)
@@ -66,6 +67,7 @@ def write_config(tmp_path, content) -> str:
 
 
 def make_frame(ids, attributes, values):
+    """Build an EAV DataFrame with an empty additional dict per row."""
     return pd.DataFrame({
         "id"        : ids,
         "attribute" : attributes,
